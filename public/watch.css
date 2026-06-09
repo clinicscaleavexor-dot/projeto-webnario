@@ -68,7 +68,14 @@
 .banner-slot--top { margin: 0 0 1rem; }
 .banner-slot--side { margin-top: 1rem; }
 .banner-slot a { display: block; }
-.banner-slot img { width: 100%; border-radius: var(--radius); display: block; }
+.banner-slot img {
+  width: 100%;
+  max-height: 120px;   /* altura máxima — ajuste aqui se quiser maior ou menor */
+  object-fit: cover;
+  object-position: center;
+  border-radius: var(--radius);
+  display: block;
+}
 
 /* Chat */
 .chat {
