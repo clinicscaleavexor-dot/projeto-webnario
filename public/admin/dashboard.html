@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Webnário · Painel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/css/styles.css" />
+  <script src="../config.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="dot"></span> Webnário</div>
+    <div class="row">
+      <a href="users.html" id="users-link" class="btn btn--ghost btn--sm hidden">Usuários</a>
+      <span class="pill" id="who"></span>
+      <button class="btn btn--ghost btn--sm" id="logout">Sair</button>
+    </div>
+  </header>
+
+  <main class="container stack">
+    <div class="row spread wrap">
+      <div>
+        <h1 class="mb0">Meus webinários</h1>
+        <small class="muted">Crie e gerencie suas lives simuladas.</small>
+      </div>
+      <button class="btn btn--primary" id="new-webinar">+ Novo webinário</button>
+    </div>
+
+    <div id="list" class="list"></div>
+  </main>
+
+  <script type="module" src="dashboard.js"></script>
+</body>
+</html>

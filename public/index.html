@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Webnário · Entrar</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/styles.css" />
+  <script src="config.js"></script>
+</head>
+<body>
+  <div class="auth-wrap">
+    <div class="card auth-card stack">
+      <div class="brand" style="font-size:1.4rem; justify-content:center;">
+        <span class="dot"></span> Webnário
+      </div>
+      <p class="center muted mb0">Acesso restrito ao painel de gestão</p>
+
+      <form id="login-form" class="stack">
+        <div class="field">
+          <label for="email">E-mail</label>
+          <input id="email" type="email" autocomplete="username" required placeholder="voce@email.com" />
+        </div>
+        <div class="field">
+          <label for="password">Senha</label>
+          <input id="password" type="password" autocomplete="current-password" required placeholder="••••••••" />
+        </div>
+        <button class="btn btn--primary btn--block" type="submit" id="submit-btn">Entrar</button>
+      </form>
+      <p id="msg" class="center mb0" style="color:var(--red); min-height:1.2em;"></p>
+    </div>
+  </div>
+
+  <script type="module">
+    import { supabase } from "./assets/js/supabase-client.js";
+
+    // Se já estiver logado, vai direto pro painel.
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data.session) window.location.href = "admin/dashboard.html";
+    })();
+
+    const form = document.getElementById("login-form");
+    const msg = document.getElementById("msg");
+    const btn = document.getElementById("submit-btn");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      msg.textContent = "";
+      btn.disabled = true;
+      btn.textContent = "Entrando...";
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        msg.textContent = "E-mail ou senha inválidos.";
+        btn.disabled = false;
+        btn.textContent = "Entrar";
+        return;
+      }
+      window.location.href = "admin/dashboard.html";
+    });
+  </script>
+</body>
+</html>

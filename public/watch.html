@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Transmissão ao vivo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/styles.css" />
+  <link rel="stylesheet" href="watch.css" />
+  <script src="config.js"></script>
+</head>
+<body class="watch-body">
+  <!-- Estado de carregamento / erro -->
+  <div id="loading" class="fullscreen-msg"><div class="spinner"></div><p>Carregando transmissão...</p></div>
+  <div id="error" class="fullscreen-msg hidden"><h2>Transmissão não encontrada</h2><p class="muted">Verifique o link ou tente novamente mais tarde.</p></div>
+
+  <!-- App -->
+  <div id="app" class="watch-shell hidden">
+    <header class="watch-top">
+      <div class="row" style="gap:.7rem;">
+        <span class="live-badge"><span class="live-dot"></span> AO VIVO</span>
+        <h1 id="title" class="watch-title">Webinário</h1>
+      </div>
+      <div class="viewers"><span id="viewer-count">0</span> assistindo</div>
+    </header>
+
+    <!-- Banner topo -->
+    <div id="banner-top" class="banner-slot banner-slot--top"></div>
+
+    <div class="watch-grid">
+      <!-- Coluna principal -->
+      <div class="watch-main">
+        <div class="player-wrap">
+          <video id="video" class="player" playsinline preload="auto"></video>
+
+          <!-- Overlay: contagem regressiva -->
+          <div id="overlay-waiting" class="overlay hidden">
+            <div class="overlay-inner">
+              <p id="waiting-text" class="overlay-sub">A transmissão vai começar em breve.</p>
+              <div id="countdown" class="countdown">--:--:--</div>
+              <p class="overlay-sub muted" id="waiting-when"></p>
+            </div>
+          </div>
+
+          <!-- Overlay: encerrada -->
+          <div id="overlay-ended" class="overlay hidden">
+            <div class="overlay-inner">
+              <h2>Transmissão encerrada</h2>
+              <p id="ended-text" class="overlay-sub">Esta transmissão foi encerrada.</p>
+            </div>
+          </div>
+
+          <!-- Botão ativar som -->
+          <button id="unmute" class="unmute-btn hidden">🔇 Toque para ativar o som</button>
+        </div>
+
+        <!-- Barra de CTA -->
+        <div id="cta-bar" class="cta-bar hidden"></div>
+
+        <!-- Banner abaixo do vídeo -->
+        <div id="banner-below" class="banner-slot"></div>
+      </div>
+
+      <!-- Coluna lateral: chat + banner lateral -->
+      <aside class="watch-side">
+        <div class="chat">
+          <div class="chat-head">
+            <span>Chat ao vivo</span>
+            <span class="chat-online"><span id="viewer-count-2">0</span> online</span>
+          </div>
+          <div id="chat-messages" class="chat-messages"></div>
+          <div class="chat-input-fake">
+            <input type="text" placeholder="Envie uma mensagem..." />
+            <button class="btn btn--sm btn--primary" type="button">Enviar</button>
+          </div>
+        </div>
+        <div id="banner-side" class="banner-slot banner-slot--side"></div>
+      </aside>
+    </div>
+  </div>
+
+  <script type="module" src="watch.js"></script>
+</body>
+</html>

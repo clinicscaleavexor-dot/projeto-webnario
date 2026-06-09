@@ -1,0 +1,23 @@
+/* Estilos específicos do editor */
+.progress {
+  height: 8px; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 999px; overflow: hidden; margin: .5rem 0;
+}
+.progress__bar { height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width .2s; }
+
+.video-preview { width: 100%; max-height: 360px; border-radius: var(--radius-sm); background: #000; margin-top: .4rem; }
+
+.info-box {
+  background: var(--bg); border: 1px dashed var(--border);
+  border-radius: var(--radius-sm); padding: .9rem 1rem; color: var(--text-dim); font-size: .9rem;
+}
+
+.sub-list { display: grid; gap: .8rem; }
+.sub-item {
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1rem;
+}
+.sub-item .field { margin-bottom: .7rem; }
+.sub-item .field-row { gap: .7rem; }
+.sub-item .row-head { display:flex; justify-content: space-between; align-items:center; margin-bottom:.6rem; }
+.tag { font-size:.72rem; font-weight:700; padding:.2em .6em; border-radius:999px; background: var(--bg-elev); color: var(--text-dim); }
+.tag--reply { background:#16331f; color: var(--green); }

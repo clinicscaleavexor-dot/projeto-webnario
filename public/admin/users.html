@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Webnário · Usuários</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/css/styles.css" />
+  <script src="../config.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="row" style="gap:1rem;">
+      <a href="dashboard.html" class="btn btn--ghost btn--sm">← Voltar</a>
+      <div class="brand"><span class="dot"></span> Webnário</div>
+    </div>
+    <span class="pill">Administração</span>
+  </header>
+
+  <main class="container stack">
+    <div>
+      <h1 class="mb0">Usuários</h1>
+      <small class="muted">Apenas administradores podem criar novos acessos.</small>
+    </div>
+
+    <div class="card stack">
+      <h2 class="mb0">Criar novo usuário</h2>
+      <form id="create-form">
+        <div class="field-row">
+          <div class="field"><label>Nome</label><input id="u-name" placeholder="Nome da pessoa" /></div>
+          <div class="field"><label>E-mail</label><input id="u-email" type="email" required placeholder="pessoa@email.com" /></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Senha (mín. 6)</label><input id="u-pass" type="text" required placeholder="senha inicial" /></div>
+          <div class="field" style="max-width:200px;">
+            <label>Papel</label>
+            <select id="u-role"><option value="user">Usuário</option><option value="admin">Administrador</option></select>
+          </div>
+        </div>
+        <button class="btn btn--primary" id="create-btn" type="submit">Criar usuário</button>
+      </form>
+    </div>
+
+    <div class="card stack">
+      <h2 class="mb0">Usuários existentes</h2>
+      <div id="users-list" class="list"></div>
+    </div>
+  </main>
+
+  <script type="module" src="users.js"></script>
+</body>
+</html>

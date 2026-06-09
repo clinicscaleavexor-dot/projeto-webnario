@@ -1,0 +1,165 @@
+/* ===================================================================
+   PROJETO WEBNÁRIO — estilos globais
+   Tema escuro, moderno, com acento roxo/violeta.
+   =================================================================== */
+:root {
+  --bg: #0d0f1a;
+  --bg-soft: #151829;
+  --bg-card: #1b1f33;
+  --bg-elev: #232844;
+  --border: #2c3354;
+  --text: #eef0fb;
+  --text-dim: #9aa1c4;
+  --text-mut: #6b7197;
+  --accent: #7c5cff;
+  --accent-2: #ff5c8a;
+  --accent-hover: #9277ff;
+  --green: #2bb673;
+  --red: #ef4d62;
+  --amber: #f5a623;
+  --radius: 14px;
+  --radius-sm: 9px;
+  --shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+  --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: radial-gradient(1200px 600px at 80% -10%, #1d2142 0%, var(--bg) 55%);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.5;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--accent-hover); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+h1, h2, h3 { margin: 0 0 .5em; font-weight: 700; letter-spacing: -0.02em; }
+h1 { font-size: 1.7rem; }
+h2 { font-size: 1.25rem; }
+h3 { font-size: 1.02rem; }
+p { margin: 0 0 1em; color: var(--text-dim); }
+small { color: var(--text-mut); }
+
+/* ---------- Botões ---------- */
+.btn {
+  display: inline-flex; align-items: center; gap: .5em;
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--text);
+  padding: .62em 1.1em;
+  border-radius: var(--radius-sm);
+  font: inherit; font-weight: 600;
+  cursor: pointer; transition: .15s ease;
+  text-decoration: none; white-space: nowrap;
+}
+.btn:hover { border-color: var(--accent); transform: translateY(-1px); text-decoration: none; }
+.btn:active { transform: translateY(0); }
+.btn--primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); border-color: transparent; }
+.btn--primary:hover { filter: brightness(1.08); border-color: transparent; }
+.btn--ghost { background: transparent; }
+.btn--danger { color: #ffd7dc; border-color: #5b2230; background: #3a1a22; }
+.btn--danger:hover { border-color: var(--red); }
+.btn--sm { padding: .42em .8em; font-size: .85rem; }
+.btn--block { width: 100%; justify-content: center; }
+.btn:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+
+/* ---------- Formulários ---------- */
+label { display: block; font-weight: 600; font-size: .85rem; margin: 0 0 .35em; color: var(--text-dim); }
+input, textarea, select {
+  width: 100%; padding: .68em .85em;
+  background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font: inherit; transition: .15s;
+}
+input:focus, textarea:focus, select:focus {
+  outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(124, 92, 255, .2);
+}
+textarea { resize: vertical; min-height: 70px; }
+.field { margin-bottom: 1rem; }
+.field-row { display: flex; gap: 1rem; flex-wrap: wrap; }
+.field-row > .field { flex: 1; min-width: 160px; }
+.checkbox { display: flex; align-items: center; gap: .55em; }
+.checkbox input { width: auto; }
+.checkbox label { margin: 0; }
+
+/* ---------- Cartões / layout ---------- */
+.card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1.4rem; box-shadow: var(--shadow);
+}
+.container { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
+.muted { color: var(--text-mut); }
+.row { display: flex; align-items: center; gap: .6rem; }
+.spread { justify-content: space-between; }
+.wrap { flex-wrap: wrap; }
+.stack > * + * { margin-top: 1rem; }
+.divider { height: 1px; background: var(--border); margin: 1.2rem 0; border: 0; }
+
+/* ---------- Topbar ---------- */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: .9rem 1.5rem; background: rgba(13,15,26,.85);
+  border-bottom: 1px solid var(--border); backdrop-filter: blur(8px);
+  position: sticky; top: 0; z-index: 30;
+}
+.brand { display: flex; align-items: center; gap: .6rem; font-weight: 800; letter-spacing: -.02em; }
+.brand .dot { width: 11px; height: 11px; border-radius: 50%; background: var(--accent-2); box-shadow: 0 0 12px var(--accent-2); }
+
+/* ---------- Tabela / lista ---------- */
+.list { display: grid; gap: .8rem; }
+.list-item {
+  display: flex; align-items: center; gap: 1rem; justify-content: space-between;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1rem 1.2rem;
+}
+.badge { font-size: .72rem; padding: .25em .6em; border-radius: 999px; font-weight: 700; }
+.badge--draft { background: #3a3320; color: var(--amber); }
+.badge--published { background: #16331f; color: var(--green); }
+
+/* ---------- Tabs ---------- */
+.tabs { display: flex; gap: .3rem; flex-wrap: wrap; border-bottom: 1px solid var(--border); margin-bottom: 1.4rem; }
+.tab {
+  padding: .65em 1.1em; cursor: pointer; border: 0; background: transparent;
+  color: var(--text-dim); font: inherit; font-weight: 600;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--text); border-bottom-color: var(--accent); }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ---------- Toast ---------- */
+#toast-host { position: fixed; bottom: 20px; right: 20px; z-index: 1000; display: grid; gap: .5rem; }
+.toast {
+  background: var(--bg-elev); border: 1px solid var(--border);
+  padding: .8em 1.1em; border-radius: var(--radius-sm); box-shadow: var(--shadow);
+  opacity: 0; transform: translateY(10px); transition: .25s; max-width: 320px;
+}
+.toast--show { opacity: 1; transform: translateY(0); }
+.toast--success { border-color: var(--green); }
+.toast--error { border-color: var(--red); }
+
+/* ---------- Auth (login) ---------- */
+.auth-wrap { min-height: 100vh; display: grid; place-items: center; padding: 1.5rem; }
+.auth-card { width: 100%; max-width: 380px; }
+
+/* ---------- Utilidades ---------- */
+.center { text-align: center; }
+.mt0 { margin-top: 0; } .mb0 { margin-bottom: 0; }
+.hidden { display: none !important; }
+.grow { flex: 1; }
+.pill {
+  display: inline-flex; align-items: center; gap: .4em;
+  background: var(--bg-elev); border: 1px solid var(--border);
+  padding: .3em .7em; border-radius: 999px; font-size: .8rem;
+}
+.empty {
+  text-align: center; padding: 3rem 1rem; color: var(--text-mut);
+  border: 1px dashed var(--border); border-radius: var(--radius);
+}

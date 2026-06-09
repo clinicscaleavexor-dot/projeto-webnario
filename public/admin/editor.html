@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Webnário · Configurar</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/css/styles.css" />
+  <link rel="stylesheet" href="editor.css" />
+  <script src="../config.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="row" style="gap:1rem;">
+      <a href="dashboard.html" class="btn btn--ghost btn--sm">← Voltar</a>
+      <div class="brand"><span class="dot"></span> Webnário</div>
+    </div>
+    <div class="row wrap">
+      <a id="preview-link" class="btn btn--ghost btn--sm" target="_blank">Abrir live ↗</a>
+      <button class="btn btn--sm" id="copy-link">Copiar link</button>
+      <button class="btn btn--sm" id="publish-btn">Publicar</button>
+      <button class="btn btn--primary btn--sm" id="save-btn">Salvar</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="field">
+      <input id="title" placeholder="Título do webinário" style="font-size:1.3rem; font-weight:700;" />
+    </div>
+
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-tab="video">Vídeo</button>
+      <button class="tab" data-tab="agenda">Agenda</button>
+      <button class="tab" data-tab="comments">Comentários</button>
+      <button class="tab" data-tab="cta">CTA</button>
+      <button class="tab" data-tab="banner">Banner</button>
+      <button class="tab" data-tab="viewers">Espectadores</button>
+    </nav>
+
+    <!-- ============ VÍDEO ============ -->
+    <section class="tab-panel active" data-panel="video">
+      <div class="card stack">
+        <h2 class="mb0">Vídeo da live</h2>
+        <p class="muted mt0">Suba um arquivo MP4 ou cole a URL de um vídeo já hospedado.</p>
+
+        <div class="field">
+          <label>Enviar arquivo de vídeo</label>
+          <input type="file" id="video-file" accept="video/*" />
+          <div id="upload-progress" class="progress hidden"><div class="progress__bar" id="upload-bar"></div></div>
+          <small id="upload-status" class="muted"></small>
+        </div>
+
+        <div class="field">
+          <label>Ou cole a URL do vídeo (MP4)</label>
+          <input id="video-url" placeholder="https://..." />
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label>Duração do vídeo</label>
+            <input id="video-duration" placeholder="MM:SS ou HH:MM:SS" />
+            <small class="muted">Detectada automaticamente no upload; ajuste se necessário.</small>
+          </div>
+        </div>
+
+        <div id="video-preview-wrap" class="hidden">
+          <label>Pré-visualização</label>
+          <video id="video-preview" controls preload="metadata" class="video-preview"></video>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ AGENDA ============ -->
+    <section class="tab-panel" data-panel="agenda">
+      <div class="card stack">
+        <h2 class="mb0">Agendamento da "live"</h2>
+        <p class="muted mt0">No horário marcado, o vídeo começa sozinho. Quem entra atrasado já pega a live em andamento.</p>
+        <div class="field-row">
+          <div class="field">
+            <label>Data e hora de início</label>
+            <input type="datetime-local" id="scheduled-start" />
+          </div>
+          <div class="field">
+            <label>Fuso horário (referência)</label>
+            <input id="timezone" placeholder="America/Sao_Paulo" />
+          </div>
+        </div>
+        <div class="info-box" id="agenda-info"></div>
+      </div>
+    </section>
+
+    <!-- ============ COMENTÁRIOS ============ -->
+    <section class="tab-panel" data-panel="comments">
+      <div class="card stack">
+        <div class="row spread wrap">
+          <div>
+            <h2 class="mb0">Comentários programados</h2>
+            <small class="muted">Comentários fake e respostas de "ADM da live", cada um aparece num minuto do vídeo.</small>
+          </div>
+          <button class="btn btn--primary btn--sm" id="add-comment">+ Adicionar</button>
+        </div>
+        <div id="comments-list" class="sub-list"></div>
+      </div>
+    </section>
+
+    <!-- ============ CTA ============ -->
+    <section class="tab-panel" data-panel="cta">
+      <div class="card stack">
+        <div class="row spread wrap">
+          <div>
+            <h2 class="mb0">Botões de ação (CTA)</h2>
+            <small class="muted">Aparecem num minuto definido e podem ser "postados" no chat.</small>
+          </div>
+          <button class="btn btn--primary btn--sm" id="add-cta">+ Adicionar</button>
+        </div>
+        <div id="cta-list" class="sub-list"></div>
+      </div>
+    </section>
+
+    <!-- ============ BANNER ============ -->
+    <section class="tab-panel" data-panel="banner">
+      <div class="card stack">
+        <div class="row spread wrap">
+          <div>
+            <h2 class="mb0">Banners</h2>
+            <small class="muted">Imagens clicáveis dentro da página da live.</small>
+          </div>
+          <button class="btn btn--primary btn--sm" id="add-banner">+ Adicionar</button>
+        </div>
+        <div id="banner-list" class="sub-list"></div>
+      </div>
+    </section>
+
+    <!-- ============ ESPECTADORES ============ -->
+    <section class="tab-panel" data-panel="viewers">
+      <div class="card stack">
+        <h2 class="mb0">Espectadores ao vivo (simulado)</h2>
+        <p class="muted mt0">O contador começa no valor base e sobe gradualmente até o pico ao longo do vídeo.</p>
+        <div class="field-row">
+          <div class="field">
+            <label>Espectadores iniciais</label>
+            <input type="number" id="v-base" min="0" value="120" />
+          </div>
+          <div class="field">
+            <label>Pico de espectadores</label>
+            <input type="number" id="v-peak" min="0" value="850" />
+          </div>
+          <div class="field">
+            <label>Variação (aleatoriedade)</label>
+            <input type="number" id="v-jitter" min="0" value="12" />
+          </div>
+        </div>
+        <hr class="divider" />
+        <h3 class="mb0">Textos das telas</h3>
+        <div class="field">
+          <label>Texto antes de começar (contagem regressiva)</label>
+          <input id="waiting-text" placeholder="A transmissão vai começar em breve." />
+        </div>
+        <div class="field">
+          <label>Texto após o término</label>
+          <input id="ended-text" placeholder="Esta transmissão foi encerrada." />
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Template de linha editável reutilizado pelo JS -->
+  <script type="module" src="editor.js"></script>
+</body>
+</html>
