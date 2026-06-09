@@ -36,6 +36,8 @@
 /* Player */
 .player-wrap { position: relative; background: #000; border-radius: var(--radius); overflow: hidden; aspect-ratio: 16/9; }
 .player { width: 100%; height: 100%; display: block; background: #000; object-fit: contain; }
+/* Player YouTube: o iframe criado pela API precisa preencher o container */
+#yt-player iframe { width: 100% !important; height: 100% !important; border: 0; }
 
 .overlay { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(6,8,16,.92); text-align: center; padding: 1.5rem; }
 .overlay-inner { max-width: 460px; }

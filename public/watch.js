@@ -5,8 +5,8 @@ const $ = (id) => document.getElementById(id);
 const _params = new URLSearchParams(location.search);
 const slug = _params.get("w");
 const scheduleId = _params.get("s") || null;
-const modeParam = _params.get("mode") || null;      // "now"
-const startParam = _params.get("start") || null;    // unix timestamp em ms
+const modeParam = _params.get("mode") || null;
+const startParam = _params.get("start") || null;
 
 let data = null;
 let webinar = null;
@@ -20,12 +20,17 @@ let videoSynced = false;
 let isAdmin = false;
 let webinarId = null;
 
+// --- YouTube ---
+let isYouTube = false;
+let ytPlayer = null;
+let ytReady = false;
+let ytPendingSeek = null; // posição a buscar quando o player estiver pronto
+
 init();
 
 async function init() {
   if (!slug) return showError();
 
-  // Detecta se o usuário é admin (em paralelo com o carregamento do webinário)
   const [pkgResult, adminResult] = await Promise.all([
     loadWebinar(),
     checkAdmin(),
@@ -39,12 +44,9 @@ async function init() {
   duration = webinar.video_duration_seconds || 0;
   isAdmin = adminResult;
 
-  // Determina o horário de início conforme o modo
   if (modeParam === "now") {
-    // "Assistir Agora": início = agora (offset = 0, vídeo começa do começo)
     scheduledMs = new Date(pkgResult.server_now).getTime();
   } else if (startParam) {
-    // Horário passado como timestamp Unix em ms (caso "30 minutos")
     scheduledMs = parseInt(startParam, 10);
   } else {
     scheduledMs = webinar.scheduled_start_at
@@ -53,7 +55,6 @@ async function init() {
   }
   clockOffsetMs = new Date(pkgResult.server_now).getTime() - Date.now();
 
-  // Monta UI base
   $("loading").classList.add("hidden");
   $("app").classList.remove("hidden");
   document.title = webinar.title + " · Ao vivo";
@@ -61,26 +62,146 @@ async function init() {
   if (webinar.settings?.waiting_text) $("waiting-text").textContent = webinar.settings.waiting_text;
   if (webinar.settings?.ended_text) $("ended-text").textContent = webinar.settings.ended_text;
 
-  const video = $("video");
-  if (webinar.video_url) video.src = webinar.video_url;
-  video.muted = true;
+  // Detecta tipo de vídeo e inicializa o player correto
+  const ytId = extractYouTubeId(webinar.video_url);
+  if (ytId) {
+    isYouTube = true;
+    $("video").classList.add("hidden");
+    $("yt-player").classList.remove("hidden");
+    // Carrega a API do YouTube em background; o player será criado quando necessário
+    loadYouTubeApi().then(() => createYouTubePlayer(ytId));
+  } else {
+    const video = $("video");
+    if (webinar.video_url) video.src = webinar.video_url;
+    video.muted = true;
+  }
+
+  // Unmute: funciona para MP4 e YouTube
   $("unmute").addEventListener("click", () => {
-    video.muted = false;
+    if (isYouTube && ytPlayer) {
+      ytPlayer.unMute();
+    } else {
+      $("video").muted = false;
+    }
     $("unmute").classList.add("hidden");
   });
 
   renderBanners(0);
-
-  // Ativa chat real para admin
   if (isAdmin) setupAdminChat();
-
-  // Inscreve em live_comments via Realtime (todos os espectadores)
   subscribeToLiveComments();
 
   tick();
   setInterval(tick, 1000);
   setInterval(resync, 60000);
 }
+
+// ---------- YouTube helpers ----------
+
+function extractYouTubeId(url) {
+  if (!url) return null;
+  const m = url.match(
+    /(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/
+  );
+  return m ? m[1] : null;
+}
+
+function loadYouTubeApi() {
+  return new Promise((resolve) => {
+    if (window.YT && window.YT.Player) { resolve(); return; }
+    window.onYouTubeIframeAPIReady = resolve;
+    const tag = document.createElement("script");
+    tag.src = "https://www.youtube.com/iframe_api";
+    document.head.appendChild(tag);
+  });
+}
+
+function createYouTubePlayer(videoId) {
+  ytPlayer = new YT.Player("yt-player", {
+    videoId,
+    playerVars: {
+      autoplay: 1,
+      mute: 1,
+      controls: 0,
+      disablekb: 1,
+      modestbranding: 1,
+      rel: 0,
+      iv_load_policy: 3,
+      playsinline: 1,
+      fs: 0,
+    },
+    events: {
+      onReady(e) {
+        ytReady = true;
+        e.target.mute();
+        if (ytPendingSeek !== null) {
+          e.target.seekTo(ytPendingSeek, true);
+          e.target.playVideo();
+          ytPendingSeek = null;
+          $("unmute").classList.remove("hidden");
+        }
+      },
+    },
+  });
+}
+
+// ---------- Player unificado ----------
+
+function startVideo(elapsed) {
+  videoSynced = true;
+  const seekTo = Math.max(0, elapsed);
+
+  if (isYouTube) {
+    if (ytReady && ytPlayer) {
+      ytPlayer.seekTo(seekTo, true);
+      ytPlayer.playVideo();
+      $("unmute").classList.remove("hidden");
+    } else {
+      ytPendingSeek = seekTo; // onReady irá buscar quando o player estiver pronto
+    }
+    return;
+  }
+
+  // MP4 nativo
+  const video = $("video");
+  const doPlay = () => {
+    try { video.currentTime = seekTo; } catch {}
+    video.play().then(() => {
+      if (video.muted) $("unmute").classList.remove("hidden");
+    }).catch(() => {
+      $("unmute").classList.remove("hidden");
+      $("unmute").textContent = "▶ Toque para iniciar";
+    });
+  };
+  if (video.readyState >= 1) doPlay();
+  else video.addEventListener("loadedmetadata", doPlay, { once: true });
+}
+
+function syncVideo(elapsed) {
+  const target = Math.max(0, elapsed);
+
+  if (isYouTube) {
+    if (!ytReady || !ytPlayer || !videoSynced) return;
+    const state = ytPlayer.getPlayerState();
+    if (state !== 1 /* PLAYING */) return;
+    const current = ytPlayer.getCurrentTime();
+    if (Math.abs(current - target) > 2) ytPlayer.seekTo(target, true);
+    return;
+  }
+
+  const video = $("video");
+  if (!videoSynced || video.readyState < 1 || video.paused) return;
+  if (Math.abs(video.currentTime - target) > 2) video.currentTime = target;
+}
+
+function pausePlayer() {
+  if (isYouTube) {
+    if (ytReady && ytPlayer) ytPlayer.pauseVideo();
+  } else {
+    try { $("video").pause(); } catch {}
+  }
+}
+
+// ---------- Carregamento e Loop ----------
 
 async function loadWebinar() {
   const rpcArgs = { p_slug: slug };
@@ -95,14 +216,9 @@ async function checkAdmin() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
     const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
+      .from("profiles").select("role").eq("id", user.id).single();
     return profile?.role === "admin";
-  } catch {
-    return false;
-  }
+  } catch { return false; }
 }
 
 function showError() {
@@ -121,7 +237,6 @@ async function resync() {
   if (sn) clockOffsetMs = new Date(sn).getTime() - Date.now();
 }
 
-// ---------- Loop ----------
 function tick() {
   const elapsed = elapsedSeconds();
 
@@ -144,36 +259,9 @@ function setMode(next, elapsed) {
     $("overlay-waiting").classList.toggle("hidden", next !== "waiting");
     $("overlay-ended").classList.toggle("hidden", next !== "ended");
     if (next === "live" && !videoSynced) startVideo(elapsed);
-    if (next === "ended") { try { $("video").pause(); } catch {} }
+    if (next === "ended") pausePlayer();
   }
   if (next === "waiting") updateCountdown(elapsed);
-}
-
-// ---------- Vídeo ----------
-function startVideo(elapsed) {
-  const video = $("video");
-  videoSynced = true;
-  const seekTo = Math.max(0, elapsed);
-  const doPlay = () => {
-    try { video.currentTime = seekTo; } catch {}
-    video.play().then(() => {
-      if (video.muted) $("unmute").classList.remove("hidden");
-    }).catch(() => {
-      $("unmute").classList.remove("hidden");
-      $("unmute").textContent = "▶ Toque para iniciar";
-    });
-  };
-  if (video.readyState >= 1) doPlay();
-  else video.addEventListener("loadedmetadata", doPlay, { once: true });
-}
-
-function syncVideo(elapsed) {
-  const video = $("video");
-  if (!videoSynced || video.readyState < 1 || video.paused) return;
-  const target = Math.max(0, elapsed);
-  if (Math.abs(video.currentTime - target) > 2) {
-    video.currentTime = target;
-  }
 }
 
 // ---------- Contagem regressiva ----------
@@ -192,11 +280,7 @@ function revealComments(elapsed) {
   for (const c of data.comments) {
     if (c.show_at_seconds <= elapsed && !shownComments.has(c.id)) {
       shownComments.add(c.id);
-      host.appendChild(buildMessage({
-        name: c.author_name,
-        body: c.body,
-        admin: c.type === "admin_reply",
-      }));
+      host.appendChild(buildMessage({ name: c.author_name, body: c.body, admin: c.type === "admin_reply" }));
       scrollChat();
     }
   }
@@ -244,10 +328,7 @@ function setupAdminChat() {
       body,
     });
     btn.disabled = false;
-    if (!error) {
-      input.value = "";
-      input.focus();
-    }
+    if (!error) { input.value = ""; input.focus(); }
   };
 
   btn.addEventListener("click", send);
@@ -256,41 +337,26 @@ function setupAdminChat() {
   });
 }
 
-// Realtime: todos os espectadores recebem comentários ao vivo do admin
 function subscribeToLiveComments() {
   if (!webinarId) return;
   supabase
     .channel("live-comments-" + webinarId)
-    .on(
-      "postgres_changes",
-      {
-        event: "INSERT",
-        schema: "public",
-        table: "live_comments",
-        filter: `webinar_id=eq.${webinarId}`,
-      },
-      (payload) => {
-        const host = $("chat-messages");
-        host.appendChild(
-          buildMessage({
-            name: payload.new.author_name,
-            body: payload.new.body,
-            admin: true,
-          })
-        );
-        scrollChat();
-      }
-    )
+    .on("postgres_changes", {
+      event: "INSERT", schema: "public", table: "live_comments",
+      filter: `webinar_id=eq.${webinarId}`,
+    }, (payload) => {
+      $("chat-messages").appendChild(
+        buildMessage({ name: payload.new.author_name, body: payload.new.body, admin: true })
+      );
+      scrollChat();
+    })
     .subscribe();
 }
 
 // ---------- CTA ----------
 function revealCtas(elapsed) {
   const active = data.ctas.filter((c) => c.show_at_seconds <= elapsed);
-  if (active.length) {
-    const c = active[active.length - 1];
-    renderCtaBar(c);
-  }
+  if (active.length) renderCtaBar(active[active.length - 1]);
   for (const c of active) {
     if (c.post_in_chat && !shownCtaChat.has(c.id)) {
       shownCtaChat.add(c.id);
@@ -341,7 +407,7 @@ function updateViewers(elapsed) {
   let count;
   if (mode === "waiting") {
     const warm = Math.max(0, 60 + elapsed);
-    count = Math.round(v.base * Math.min(1, Math.max(0.15, (warm) / 60)));
+    count = Math.round(v.base * Math.min(1, Math.max(0.15, warm / 60)));
   } else if (mode === "ended") {
     count = Math.round(v.base * 0.4);
   } else {
