@@ -1,0 +1,39 @@
+/* Página pública de agendamento */
+.sched-body { background: radial-gradient(1200px 700px at 60% -5%, #1d2142 0%, #0d0f1a 55%); min-height: 100vh; }
+
+.fullscreen-msg { min-height: 100vh; display: grid; place-items: center; text-align: center; padding: 2rem; }
+.spinner { width: 40px; height: 40px; border-radius: 50%; border: 3px solid #2c3354; border-top-color: #7c5cff; animation: spin 1s linear infinite; margin: 0 auto 1rem; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.sched-shell { max-width: 740px; margin: 0 auto; padding: 1.5rem; }
+.sched-top { display: flex; align-items: center; padding-bottom: 2rem; }
+
+.sched-hero { text-align: center; padding: 1rem 0 2.5rem; }
+.sched-hero h1 { font-size: clamp(1.5rem, 5vw, 2.2rem); margin-bottom: .5rem; }
+
+/* Slots */
+.slots-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; }
+.slot-card {
+  background: #1b1f33; border: 1px solid #2c3354; border-radius: 14px;
+  padding: 1.4rem 1.2rem; cursor: pointer; transition: .18s; text-align: center;
+  display: flex; flex-direction: column; gap: .4rem;
+}
+.slot-card:hover { border-color: #7c5cff; transform: translateY(-3px); box-shadow: 0 12px 40px rgba(0,0,0,.4); }
+.slot-card:active { transform: translateY(0); }
+.slot-day { font-size: .78rem; font-weight: 700; color: #9aa1c4; text-transform: uppercase; letter-spacing: .06em; }
+.slot-date { font-size: 1.05rem; font-weight: 700; }
+.slot-time { font-size: 1.7rem; font-weight: 800; color: #7c5cff; letter-spacing: -.02em; }
+.slot-label { font-size: .8rem; color: #9aa1c4; font-style: italic; }
+.slot-live { display: inline-flex; align-items: center; gap: .4em; background: #ef4d62; color: #fff; font-size: .7rem; font-weight: 800; padding: .25em .6em; border-radius: 6px; letter-spacing: .04em; margin: 0 auto; }
+.slot-live-dot { width: 7px; height: 7px; border-radius: 50%; background: #fff; animation: pulse 1.4s infinite; }
+@keyframes pulse { 50% { opacity: .3; } }
+
+.empty { text-align: center; padding: 3rem 1rem; color: #6b7197; border: 1px dashed #2c3354; border-radius: 14px; }
+
+/* Confirmação */
+.confirm-box { display: grid; place-items: center; padding: 1rem 0; }
+.confirm-inner { max-width: 420px; width: 100%; text-align: center; }
+.confirm-check {
+  width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, #7c5cff, #ff5c8a);
+  font-size: 1.8rem; display: grid; place-items: center; margin: 0 auto;
+}

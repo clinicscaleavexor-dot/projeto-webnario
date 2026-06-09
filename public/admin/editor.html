@@ -74,19 +74,22 @@
     <!-- ============ AGENDA ============ -->
     <section class="tab-panel" data-panel="agenda">
       <div class="card stack">
-        <h2 class="mb0">Agendamento da "live"</h2>
-        <p class="muted mt0">No horário marcado, o vídeo começa sozinho. Quem entra atrasado já pega a live em andamento.</p>
-        <div class="field-row">
-          <div class="field">
-            <label>Data e hora de início</label>
-            <input type="datetime-local" id="scheduled-start" />
+        <div class="row spread wrap">
+          <div>
+            <h2 class="mb0">Horários de transmissão</h2>
+            <small class="muted">Adicione quantos horários quiser. A live roda de forma independente em cada um deles.</small>
           </div>
-          <div class="field">
-            <label>Fuso horário (referência)</label>
-            <input id="timezone" placeholder="America/Sao_Paulo" />
-          </div>
+          <button class="btn btn--primary btn--sm" id="add-schedule">+ Adicionar horário</button>
         </div>
-        <div class="info-box" id="agenda-info"></div>
+        <div id="schedules-list" class="sub-list"></div>
+      </div>
+
+      <div class="card stack" style="margin-top:1rem;">
+        <h3 class="mb0">Configurações gerais</h3>
+        <div class="field">
+          <label>Fuso horário (referência)</label>
+          <input id="timezone" placeholder="America/Sao_Paulo" />
+        </div>
       </div>
     </section>
 

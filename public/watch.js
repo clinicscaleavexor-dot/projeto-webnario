@@ -2,7 +2,9 @@ import { supabase } from "./assets/js/supabase-client.js";
 import { fmtClock, escapeHtml, avatarFor } from "./assets/js/util.js";
 
 const $ = (id) => document.getElementById(id);
-const slug = new URLSearchParams(location.search).get("w");
+const _params = new URLSearchParams(location.search);
+const slug = _params.get("w");
+const scheduleId = _params.get("s") || null;
 
 let data = null;          // pacote retornado pela RPC
 let webinar = null;
@@ -18,7 +20,9 @@ init();
 
 async function init() {
   if (!slug) return showError();
-  const { data: pkg, error } = await supabase.rpc("get_public_webinar", { p_slug: slug });
+  const rpcArgs = { p_slug: slug };
+  if (scheduleId) rpcArgs.p_schedule_id = scheduleId;
+  const { data: pkg, error } = await supabase.rpc("get_public_webinar", rpcArgs);
   if (error || !pkg) return showError();
 
   data = pkg;

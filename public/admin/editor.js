@@ -27,7 +27,7 @@ const $ = (id) => document.getElementById(id);
   $("add-comment").addEventListener("click", () => addChild("comments"));
   $("add-cta").addEventListener("click", () => addChild("ctas"));
   $("add-banner").addEventListener("click", () => addChild("banners"));
-  $("scheduled-start").addEventListener("change", updateAgendaInfo);
+  $("add-schedule").addEventListener("click", addSchedule);
 })();
 
 // ---------- Tabs ----------
@@ -51,7 +51,6 @@ async function loadWebinar() {
   $("title").value = data.title || "";
   $("video-url").value = data.video_url || "";
   $("video-duration").value = data.video_duration_seconds ? fmtClock(data.video_duration_seconds) : "";
-  $("scheduled-start").value = isoToLocalInput(data.scheduled_start_at);
   $("timezone").value = data.timezone || "America/Sao_Paulo";
 
   const s = data.settings || {};
@@ -65,9 +64,8 @@ async function loadWebinar() {
   if (data.video_url) showVideoPreview(data.video_url);
   updatePublishBtn();
   updateLinks();
-  updateAgendaInfo();
 
-  await Promise.all([renderComments(), renderCtas(), renderBanners()]);
+  await Promise.all([renderSchedules(), renderComments(), renderCtas(), renderBanners()]);
 }
 
 function publicUrl(slug) {
@@ -102,7 +100,6 @@ async function saveCore() {
     title: $("title").value.trim() || "Webinário sem título",
     video_url: $("video-url").value.trim() || null,
     video_duration_seconds: parseClock($("video-duration").value) || null,
-    scheduled_start_at: localInputToISO($("scheduled-start").value),
     timezone: $("timezone").value.trim() || "America/Sao_Paulo",
     settings,
   };
@@ -111,14 +108,15 @@ async function saveCore() {
   btn.disabled = false; btn.textContent = "Salvar";
   if (error) return toast("Erro ao salvar: " + error.message, "error");
   webinar = data;
-  updateAgendaInfo();
   toast("Alterações salvas!", "success");
 }
 
 async function togglePublish() {
   const next = webinar.status === "published" ? "draft" : "published";
-  if (next === "published" && (!webinar.video_url || !webinar.scheduled_start_at)) {
-    return toast("Defina o vídeo e o horário antes de publicar.", "error");
+  if (next === "published") {
+    if (!webinar.video_url) return toast("Defina o vídeo antes de publicar.", "error");
+    const { count } = await supabase.from("webinar_schedules").select("*", { count: "exact", head: true }).eq("webinar_id", WID).eq("active", true);
+    if (!count) return toast("Adicione ao menos um horário antes de publicar.", "error");
   }
   const { data, error } = await supabase.from("webinars").update({ status: next }).eq("id", WID).select("*").single();
   if (error) return toast("Erro: " + error.message, "error");
@@ -128,18 +126,6 @@ async function togglePublish() {
 }
 function updatePublishBtn() {
   $("publish-btn").textContent = webinar.status === "published" ? "Despublicar" : "Publicar";
-}
-
-// ---------- Agenda info ----------
-function updateAgendaInfo() {
-  const iso = localInputToISO($("scheduled-start").value);
-  const box = $("agenda-info");
-  if (!iso) { box.textContent = "Nenhum horário definido. O vídeo não iniciará automaticamente."; return; }
-  const d = new Date(iso);
-  const now = new Date();
-  const diff = Math.round((d - now) / 60000);
-  let rel = diff > 0 ? `começa em ${diff} min` : diff === 0 ? "começa agora" : `começou há ${-diff} min (em andamento)`;
-  box.innerHTML = `Início: <b>${d.toLocaleString("pt-BR")}</b> · ${rel}`;
 }
 
 // ---------- Vídeo: upload e URL ----------
@@ -406,4 +392,85 @@ async function renderBanners() {
     });
     host.appendChild(el);
   }
+}
+
+// =====================================================================
+//  HORÁRIOS (webinar_schedules)
+// =====================================================================
+function scheduleRelLabel(isoStr) {
+  if (!isoStr) return "";
+  const d = new Date(isoStr);
+  const diff = Math.round((d - Date.now()) / 60000);
+  if (diff > 0) return `começa em ${diff} min`;
+  if (diff === 0) return "começa agora";
+  const absMin = -diff;
+  if (absMin < 60) return `em andamento há ${absMin} min`;
+  return `passou há ${Math.round(absMin / 60)}h`;
+}
+
+async function renderSchedules() {
+  const host = $("schedules-list");
+  const { data } = await supabase
+    .from("webinar_schedules")
+    .select("*")
+    .eq("webinar_id", WID)
+    .order("start_at", { ascending: true });
+
+  if (!data || !data.length) {
+    host.innerHTML = `<div class="empty">Nenhum horário cadastrado. Clique em <b>+ Adicionar horário</b>.</div>`;
+    return;
+  }
+
+  host.innerHTML = "";
+  for (const s of data) {
+    const rel = scheduleRelLabel(s.start_at);
+    const el = document.createElement("div");
+    el.className = "sub-item";
+    el.innerHTML = `
+      <div class="row-head">
+        <span class="tag">${s.start_at ? new Date(s.start_at).toLocaleString("pt-BR") : "Sem horário"} <span style="color:var(--accent-hover); font-weight:400;">${rel}</span></span>
+        <button class="btn btn--sm btn--danger" data-act="del">Excluir</button>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Data e hora de início</label>
+          <input type="datetime-local" data-f="start_at" value="${isoToLocalInput(s.start_at)}" />
+        </div>
+        <div class="field">
+          <label>Rótulo (opcional)</label>
+          <input data-f="label" value="${escapeHtml(s.label || "")}" placeholder='ex: "Segunda 20h"' />
+        </div>
+      </div>
+      <button class="btn btn--sm btn--primary" data-act="save">Salvar horário</button>`;
+
+    el.querySelector('[data-act="del"]').addEventListener("click", async () => {
+      if (!confirm("Excluir este horário?")) return;
+      const { error } = await supabase.from("webinar_schedules").delete().eq("id", s.id);
+      if (error) return toast("Erro: " + error.message, "error");
+      await renderSchedules();
+    });
+
+    el.querySelector('[data-act="save"]').addEventListener("click", async () => {
+      const startIso = localInputToISO(el.querySelector('[data-f="start_at"]').value);
+      if (!startIso) return toast("Informe a data e hora.", "error");
+      const { error } = await supabase.from("webinar_schedules").update({
+        start_at: startIso,
+        label: el.querySelector('[data-f="label"]').value.trim() || null,
+      }).eq("id", s.id);
+      if (error) return toast("Erro ao salvar: " + error.message, "error");
+      toast("Horário salvo!", "success");
+      await renderSchedules();
+    });
+
+    host.appendChild(el);
+  }
+}
+
+async function addSchedule() {
+  const { error } = await supabase.from("webinar_schedules").insert({
+    webinar_id: WID,
+    start_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString(), // default: amanhã
+  });
+  if (error) return toast("Erro: " + error.message, "error");
+  await renderSchedules();
 }

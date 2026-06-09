@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Escolha seu horário</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/styles.css" />
+  <link rel="stylesheet" href="schedule.css" />
+  <script src="config.js"></script>
+</head>
+<body class="sched-body">
+  <div id="loading" class="fullscreen-msg"><div class="spinner"></div><p>Carregando...</p></div>
+  <div id="error" class="fullscreen-msg hidden"><h2>Webinário não encontrado</h2><p class="muted">Verifique o link ou tente novamente.</p></div>
+
+  <div id="app" class="sched-shell hidden">
+    <header class="sched-top">
+      <div class="brand"><span class="dot"></span> Webnário</div>
+    </header>
+
+    <main class="sched-main">
+      <div class="sched-hero">
+        <h1 id="webinar-title">Webinário</h1>
+        <p class="muted" id="webinar-sub">Escolha o melhor horário para você assistir à transmissão ao vivo.</p>
+      </div>
+
+      <!-- Grade de horários -->
+      <div id="slots" class="slots-grid"></div>
+
+      <!-- Confirmação após escolha -->
+      <div id="confirm-box" class="confirm-box hidden">
+        <div class="confirm-inner card stack">
+          <div class="confirm-check">✓</div>
+          <h2 class="mb0">Horário confirmado!</h2>
+          <p class="muted mt0" id="confirm-label"></p>
+          <a id="confirm-watch" class="btn btn--primary btn--block" target="_blank">Acessar transmissão</a>
+          <button class="btn btn--ghost btn--block btn--sm" id="copy-confirm">Copiar link da live</button>
+          <button class="btn btn--ghost btn--block btn--sm" id="back-btn">← Escolher outro horário</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script type="module" src="schedule.js"></script>
+</body>
+</html>

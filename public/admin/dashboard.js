@@ -37,9 +37,6 @@ async function loadList() {
 
   listEl.innerHTML = "";
   for (const w of data) {
-    const when = w.scheduled_start_at
-      ? new Date(w.scheduled_start_at).toLocaleString("pt-BR")
-      : "sem horário definido";
     const item = document.createElement("div");
     item.className = "list-item";
     item.innerHTML = `
@@ -48,10 +45,10 @@ async function loadList() {
           <strong>${escapeHtml(w.title)}</strong>
           <span class="badge badge--${w.status}">${w.status === "published" ? "Publicado" : "Rascunho"}</span>
         </div>
-        <small class="muted">Início: ${when}</small>
       </div>
       <div class="row wrap">
-        <button class="btn btn--sm" data-act="copy">Copiar link</button>
+        <button class="btn btn--sm" data-act="copy">Copiar link live</button>
+        <button class="btn btn--sm" data-act="copy-sched">Link de agendamento</button>
         <a class="btn btn--sm" href="../watch.html?w=${encodeURIComponent(w.slug)}" target="_blank">Abrir live</a>
         <a class="btn btn--sm btn--primary" href="editor.html?id=${w.id}">Configurar</a>
         <button class="btn btn--sm" data-act="dup">Duplicar</button>
@@ -59,6 +56,7 @@ async function loadList() {
       </div>`;
 
     item.querySelector('[data-act="copy"]').addEventListener("click", () => copyLink(w.slug));
+    item.querySelector('[data-act="copy-sched"]').addEventListener("click", () => copyScheduleLink(w.slug));
     item.querySelector('[data-act="dup"]').addEventListener("click", () => duplicate(w.id));
     item.querySelector('[data-act="del"]').addEventListener("click", () => remove(w.id, w.title));
     listEl.appendChild(item);
@@ -70,12 +68,17 @@ function publicUrl(slug) {
 }
 
 async function copyLink(slug) {
-  try {
-    await navigator.clipboard.writeText(publicUrl(slug));
-    toast("Link copiado!", "success");
-  } catch {
-    toast(publicUrl(slug));
-  }
+  try { await navigator.clipboard.writeText(publicUrl(slug)); toast("Link copiado!", "success"); }
+  catch { toast(publicUrl(slug)); }
+}
+
+function scheduleUrl(slug) {
+  return new URL(`schedule.html?w=${encodeURIComponent(slug)}`, new URL("../", location.href)).href;
+}
+
+async function copyScheduleLink(slug) {
+  try { await navigator.clipboard.writeText(scheduleUrl(slug)); toast("Link de agendamento copiado!", "success"); }
+  catch { toast(scheduleUrl(slug)); }
 }
 
 async function createWebinar() {
