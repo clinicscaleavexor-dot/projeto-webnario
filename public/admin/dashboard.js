@@ -23,7 +23,7 @@ async function loadList() {
   listEl.innerHTML = `<p class="muted">Carregando...</p>`;
   const { data, error } = await supabase
     .from("webinars")
-    .select("id, title, slug, status, scheduled_start_at, updated_at")
+    .select("id, title, slug, status, scheduled_start_at, updated_at, custom_domain")
     .order("updated_at", { ascending: false });
 
   if (error) {
@@ -49,36 +49,40 @@ async function loadList() {
       <div class="row wrap">
         <button class="btn btn--sm" data-act="copy">Copiar link live</button>
         <button class="btn btn--sm" data-act="copy-sched">Link de agendamento</button>
-        <a class="btn btn--sm" href="../watch.html?w=${encodeURIComponent(w.slug)}" target="_blank">Abrir live</a>
+        <a class="btn btn--sm" href="${publicUrl(w.slug, w.custom_domain)}" target="_blank">Abrir live</a>
         <a class="btn btn--sm btn--primary" href="editor.html?id=${w.id}">Configurar</a>
+        <a class="btn btn--sm" href="editor.html?id=${w.id}&tab=leads">Ver Leads</a>
         <button class="btn btn--sm" data-act="dup">Duplicar</button>
         <button class="btn btn--sm btn--danger" data-act="del">Excluir</button>
       </div>`;
 
-    item.querySelector('[data-act="copy"]').addEventListener("click", () => copyLink(w.slug));
-    item.querySelector('[data-act="copy-sched"]').addEventListener("click", () => copyScheduleLink(w.slug));
+    item.querySelector('[data-act="copy"]').addEventListener("click", () => copyLink(w.slug, w.custom_domain));
+    item.querySelector('[data-act="copy-sched"]').addEventListener("click", () => copyScheduleLink(w.slug, w.custom_domain));
     item.querySelector('[data-act="dup"]').addEventListener("click", () => duplicate(w.id));
     item.querySelector('[data-act="del"]').addEventListener("click", () => remove(w.id, w.title));
     listEl.appendChild(item);
   }
 }
 
-function publicUrl(slug) {
-  return new URL(`watch.html?w=${encodeURIComponent(slug)}`, new URL("../", location.href)).href;
+function publicUrl(slug, customDomain, page = "watch.html") {
+  if (customDomain) return `https://${customDomain}/${page}?w=${encodeURIComponent(slug)}`;
+  return new URL(`${page}?w=${encodeURIComponent(slug)}`, new URL("../", location.href)).href;
 }
 
-async function copyLink(slug) {
-  try { await navigator.clipboard.writeText(publicUrl(slug)); toast("Link copiado!", "success"); }
-  catch { toast(publicUrl(slug)); }
+async function copyLink(slug, customDomain) {
+  const url = publicUrl(slug, customDomain);
+  try { await navigator.clipboard.writeText(url); toast("Link copiado!", "success"); }
+  catch { toast(url); }
 }
 
-function scheduleUrl(slug) {
-  return new URL(`schedule.html?w=${encodeURIComponent(slug)}`, new URL("../", location.href)).href;
+function scheduleUrl(slug, customDomain) {
+  return publicUrl(slug, customDomain, "schedule.html");
 }
 
-async function copyScheduleLink(slug) {
-  try { await navigator.clipboard.writeText(scheduleUrl(slug)); toast("Link de agendamento copiado!", "success"); }
-  catch { toast(scheduleUrl(slug)); }
+async function copyScheduleLink(slug, customDomain) {
+  const url = scheduleUrl(slug, customDomain);
+  try { await navigator.clipboard.writeText(url); toast("Link de agendamento copiado!", "success"); }
+  catch { toast(url); }
 }
 
 async function createWebinar() {

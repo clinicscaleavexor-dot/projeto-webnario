@@ -25,14 +25,39 @@
         <p class="muted" id="webinar-sub">Escolha o melhor horário para você assistir à transmissão ao vivo.</p>
       </div>
 
-      <!-- Grade de horários -->
-      <div id="slots" class="slots-grid"></div>
+      <!-- Slots de horário -->
+      <div id="slots">
+        <!-- Cards especiais: Agora e 30 min -->
+        <div class="slots-special" id="slots-special"></div>
+        <!-- Cards regulares agrupados por dia -->
+        <div id="slots-days"></div>
+      </div>
 
-      <!-- Confirmação após escolha -->
+      <!-- Modal de captura de lead -->
+      <div id="lead-modal" class="lead-modal hidden">
+        <div class="lead-modal-backdrop" id="lead-backdrop"></div>
+        <div class="lead-modal-box">
+          <h2 class="lead-title">Garanta sua vaga!</h2>
+          <p class="muted lead-sub" id="lead-sub">Preencha os dados abaixo para recebermos o link da aula no horário.</p>
+          <div class="field">
+            <label>Nome completo</label>
+            <input id="lead-name" type="text" placeholder="Seu nome" autocomplete="name" />
+          </div>
+          <div class="field">
+            <label>Telefone (WhatsApp)</label>
+            <input id="lead-phone" type="tel" placeholder="(11) 9 0000-0000" autocomplete="tel" />
+          </div>
+          <div id="lead-error" class="lead-error hidden"></div>
+          <button class="btn btn--primary btn--block" id="lead-submit">Confirmar horário</button>
+          <button class="btn btn--ghost btn--block btn--sm" id="lead-cancel">Cancelar</button>
+        </div>
+      </div>
+
+      <!-- Confirmação após escolha ou lead -->
       <div id="confirm-box" class="confirm-box hidden">
         <div class="confirm-inner card stack">
           <div class="confirm-check">✓</div>
-          <h2 class="mb0">Horário confirmado!</h2>
+          <h2 class="mb0" id="confirm-heading">Horário confirmado!</h2>
           <p class="muted mt0" id="confirm-label"></p>
           <a id="confirm-watch" class="btn btn--primary btn--block" target="_blank">Acessar transmissão</a>
           <button class="btn btn--ghost btn--block btn--sm" id="copy-confirm">Copiar link da live</button>

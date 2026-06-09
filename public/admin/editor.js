@@ -28,18 +28,34 @@ const $ = (id) => document.getElementById(id);
   $("add-cta").addEventListener("click", () => addChild("ctas"));
   $("add-banner").addEventListener("click", () => addChild("banners"));
   $("add-schedule").addEventListener("click", addSchedule);
+  $("leads-refresh").addEventListener("click", () => loadLeads());
+  $("leads-filter").addEventListener("change", () => loadLeads());
+  $("leads-export").addEventListener("click", exportLeadsCsv);
 })();
 
 // ---------- Tabs ----------
+function activateTab(name) {
+  document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+  document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
+  const tab = document.querySelector(`[data-tab="${name}"]`);
+  const panel = document.querySelector(`[data-panel="${name}"]`);
+  if (tab) tab.classList.add("active");
+  if (panel) panel.classList.add("active");
+}
+
 function setupTabs() {
   document.querySelectorAll(".tab").forEach((tab) => {
     tab.addEventListener("click", () => {
-      document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
-      document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
-      tab.classList.add("active");
-      document.querySelector(`[data-panel="${tab.dataset.tab}"]`).classList.add("active");
+      activateTab(tab.dataset.tab);
+      if (tab.dataset.tab === "leads") loadLeads();
     });
   });
+  // Ativa aba via parâmetro ?tab= na URL (ex: ?tab=leads)
+  const tabParam = new URLSearchParams(location.search).get("tab");
+  if (tabParam) {
+    activateTab(tabParam);
+    if (tabParam === "leads") loadLeads();
+  }
 }
 
 // ---------- Carregar ----------
@@ -60,16 +76,21 @@ async function loadWebinar() {
   $("v-jitter").value = v.jitter ?? 12;
   $("waiting-text").value = s.waiting_text || "";
   $("ended-text").value = s.ended_text || "";
+  $("custom-domain").value = data.custom_domain || "";
 
   if (data.video_url) showVideoPreview(data.video_url);
   updatePublishBtn();
   updateLinks();
 
   await Promise.all([renderSchedules(), renderComments(), renderCtas(), renderBanners()]);
+  await populateLeadsFilter();
 }
 
-function publicUrl(slug) {
-  return new URL(`watch.html?w=${encodeURIComponent(slug)}`, new URL("../", location.href)).href;
+function publicUrl(slug, page = "watch.html") {
+  if (webinar?.custom_domain) {
+    return `https://${webinar.custom_domain}/${page}?w=${encodeURIComponent(slug)}`;
+  }
+  return new URL(`${page}?w=${encodeURIComponent(slug)}`, new URL("../", location.href)).href;
 }
 function updateLinks() {
   const url = publicUrl(webinar.slug);
@@ -101,6 +122,7 @@ async function saveCore() {
     video_url: $("video-url").value.trim() || null,
     video_duration_seconds: parseClock($("video-duration").value) || null,
     timezone: $("timezone").value.trim() || "America/Sao_Paulo",
+    custom_domain: $("custom-domain").value.trim().replace(/^https?:\/\//i, "") || null,
     settings,
   };
 
@@ -469,8 +491,108 @@ async function renderSchedules() {
 async function addSchedule() {
   const { error } = await supabase.from("webinar_schedules").insert({
     webinar_id: WID,
-    start_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString(), // default: amanhã
+    start_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
   });
   if (error) return toast("Erro: " + error.message, "error");
   await renderSchedules();
+}
+
+// =====================================================================
+//  LEADS
+// =====================================================================
+let allSchedules = [];
+
+async function populateLeadsFilter() {
+  const { data } = await supabase
+    .from("webinar_schedules")
+    .select("id, start_at, label")
+    .eq("webinar_id", WID)
+    .order("start_at", { ascending: true });
+
+  allSchedules = data || [];
+  const sel = $("leads-filter");
+  // Mantém a opção "Todos" e adiciona fixas + horários reais
+  sel.innerHTML = `
+    <option value="all">Todos os horários</option>
+    <option value="now">Assistiu Agora</option>
+    <option value="relative_30">Em 30 minutos</option>
+  `;
+  for (const s of allSchedules) {
+    const d = new Date(s.start_at);
+    const label = s.label
+      ? `${s.label} — ${d.toLocaleString("pt-BR")}`
+      : d.toLocaleString("pt-BR");
+    const opt = document.createElement("option");
+    opt.value = s.id;
+    opt.textContent = label;
+    sel.appendChild(opt);
+  }
+}
+
+async function loadLeads() {
+  const host = $("leads-list");
+  host.innerHTML = `<div class="empty">Carregando...</div>`;
+
+  const filter = $("leads-filter").value;
+  let query = supabase
+    .from("schedule_leads")
+    .select("*")
+    .eq("webinar_id", WID)
+    .order("scheduled_for", { ascending: true });
+
+  if (filter === "now") query = query.eq("schedule_type", "now");
+  else if (filter === "relative_30") query = query.eq("schedule_type", "relative_30");
+  else if (filter !== "all") query = query.eq("schedule_id", filter);
+
+  const { data, error } = await query;
+  if (error) { host.innerHTML = `<div class="empty">Erro: ${escapeHtml(error.message)}</div>`; return; }
+  if (!data || !data.length) { host.innerHTML = `<div class="empty">Nenhum lead capturado ainda.</div>`; return; }
+
+  host.innerHTML = `
+    <div class="leads-summary muted" style="font-size:.85rem;margin-bottom:.6rem;">${data.length} lead${data.length !== 1 ? "s" : ""}</div>
+    <div class="leads-table-wrap">
+      <table class="leads-table">
+        <thead>
+          <tr>
+            <th>Nome</th>
+            <th>Telefone</th>
+            <th>Horário agendado</th>
+            <th>Tipo</th>
+            <th>Cadastro</th>
+          </tr>
+        </thead>
+        <tbody id="leads-tbody"></tbody>
+      </table>
+    </div>`;
+
+  const tbody = $("leads-tbody");
+  for (const lead of data) {
+    const typeLabel = { now: "Agora", relative_30: "30 min", scheduled: "Agendado" }[lead.schedule_type] || lead.schedule_type;
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${escapeHtml(lead.name)}</td>
+      <td><a href="https://wa.me/${lead.phone.replace(/\D/g, "")}" target="_blank" rel="noopener">${escapeHtml(lead.phone)}</a></td>
+      <td>${new Date(lead.scheduled_for).toLocaleString("pt-BR")}</td>
+      <td><span class="tag tag--${lead.schedule_type}">${typeLabel}</span></td>
+      <td class="muted">${new Date(lead.created_at).toLocaleString("pt-BR")}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+function exportLeadsCsv() {
+  const rows = document.querySelectorAll("#leads-tbody tr");
+  if (!rows.length) { toast("Nenhum lead para exportar.", "error"); return; }
+
+  const lines = ["Nome,Telefone,Horário Agendado,Tipo,Data de Cadastro"];
+  rows.forEach((tr) => {
+    const cells = [...tr.querySelectorAll("td")].map((td) => `"${td.textContent.trim().replace(/"/g, '""')}"`);
+    lines.push(cells.join(","));
+  });
+
+  const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `leads-${WID.slice(0, 8)}.csv`;
+  a.click();
 }

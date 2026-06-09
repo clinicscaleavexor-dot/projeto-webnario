@@ -70,9 +70,13 @@
             <span class="chat-online"><span id="viewer-count-2">0</span> online</span>
           </div>
           <div id="chat-messages" class="chat-messages"></div>
-          <div class="chat-input-fake">
-            <input type="text" placeholder="Envie uma mensagem..." />
-            <button class="btn btn--sm btn--primary" type="button">Enviar</button>
+          <div class="chat-input-fake" id="chat-input-fake">
+            <input type="text" placeholder="Envie uma mensagem..." disabled />
+            <button class="btn btn--sm btn--primary" type="button" disabled>Enviar</button>
+          </div>
+          <div class="chat-input-real hidden" id="chat-input-real">
+            <input type="text" id="chat-text" placeholder="Digite como ADM..." maxlength="300" />
+            <button class="btn btn--sm btn--primary" type="button" id="chat-send">Enviar</button>
           </div>
         </div>
         <div id="banner-side" class="banner-slot banner-slot--side"></div>

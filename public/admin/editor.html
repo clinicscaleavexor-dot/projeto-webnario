@@ -36,6 +36,7 @@
       <button class="tab" data-tab="cta">CTA</button>
       <button class="tab" data-tab="banner">Banner</button>
       <button class="tab" data-tab="viewers">Espectadores</button>
+      <button class="tab" data-tab="leads">Leads</button>
     </nav>
 
     <!-- ============ VÍDEO ============ -->
@@ -67,6 +68,16 @@
         <div id="video-preview-wrap" class="hidden">
           <label>Pré-visualização</label>
           <video id="video-preview" controls preload="metadata" class="video-preview"></video>
+        </div>
+      </div>
+
+      <div class="card stack" style="margin-top:1rem;">
+        <h3 class="mb0">Domínio personalizado</h3>
+        <p class="muted mt0" style="font-size:.88rem;">Configure um domínio ou subdomínio próprio para os links da live e do agendamento.</p>
+        <div class="field">
+          <label>Domínio (sem https://)</label>
+          <input id="custom-domain" placeholder="ex: aula.seudomain.com.br" />
+          <small class="muted">Aponte seu DNS/CNAME para o servidor onde estes arquivos estão hospedados. Deixe em branco para usar o endereço padrão.</small>
         </div>
       </div>
     </section>
@@ -163,6 +174,27 @@
         <div class="field">
           <label>Texto após o término</label>
           <input id="ended-text" placeholder="Esta transmissão foi encerrada." />
+        </div>
+      </div>
+    </section>
+    <!-- ============ LEADS ============ -->
+    <section class="tab-panel" data-panel="leads">
+      <div class="card stack">
+        <div class="row spread wrap">
+          <div>
+            <h2 class="mb0">Leads capturados</h2>
+            <small class="muted">Pessoas que se inscreveram pela página de agendamento.</small>
+          </div>
+          <div class="row wrap" style="gap:.6rem;">
+            <select id="leads-filter" class="btn btn--ghost btn--sm" style="padding:.45em .8em;">
+              <option value="all">Todos os horários</option>
+            </select>
+            <button class="btn btn--sm" id="leads-export">Exportar CSV</button>
+            <button class="btn btn--sm btn--primary" id="leads-refresh">Atualizar</button>
+          </div>
+        </div>
+        <div id="leads-list">
+          <div class="empty">Carregando leads...</div>
         </div>
       </div>
     </section>

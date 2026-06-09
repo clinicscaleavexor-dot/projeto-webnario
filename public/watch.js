@@ -5,31 +5,53 @@ const $ = (id) => document.getElementById(id);
 const _params = new URLSearchParams(location.search);
 const slug = _params.get("w");
 const scheduleId = _params.get("s") || null;
+const modeParam = _params.get("mode") || null;      // "now"
+const startParam = _params.get("start") || null;    // unix timestamp em ms
 
-let data = null;          // pacote retornado pela RPC
+let data = null;
 let webinar = null;
 let duration = 0;
 let scheduledMs = 0;
-let clockOffsetMs = 0;    // server_now - client_now (no momento da carga)
-let mode = "loading";     // waiting | live | ended
+let clockOffsetMs = 0;
+let mode = "loading";
 const shownComments = new Set();
 const shownCtaChat = new Set();
 let videoSynced = false;
+let isAdmin = false;
+let webinarId = null;
 
 init();
 
 async function init() {
   if (!slug) return showError();
-  const rpcArgs = { p_slug: slug };
-  if (scheduleId) rpcArgs.p_schedule_id = scheduleId;
-  const { data: pkg, error } = await supabase.rpc("get_public_webinar", rpcArgs);
-  if (error || !pkg) return showError();
 
-  data = pkg;
-  webinar = pkg.webinar;
+  // Detecta se o usuário é admin (em paralelo com o carregamento do webinário)
+  const [pkgResult, adminResult] = await Promise.all([
+    loadWebinar(),
+    checkAdmin(),
+  ]);
+
+  if (!pkgResult) return showError();
+
+  data = pkgResult;
+  webinar = pkgResult.webinar;
+  webinarId = webinar.id;
   duration = webinar.video_duration_seconds || 0;
-  scheduledMs = webinar.scheduled_start_at ? new Date(webinar.scheduled_start_at).getTime() : 0;
-  clockOffsetMs = new Date(pkg.server_now).getTime() - Date.now();
+  isAdmin = adminResult;
+
+  // Determina o horário de início conforme o modo
+  if (modeParam === "now") {
+    // "Assistir Agora": início = agora (offset = 0, vídeo começa do começo)
+    scheduledMs = new Date(pkgResult.server_now).getTime();
+  } else if (startParam) {
+    // Horário passado como timestamp Unix em ms (caso "30 minutos")
+    scheduledMs = parseInt(startParam, 10);
+  } else {
+    scheduledMs = webinar.scheduled_start_at
+      ? new Date(webinar.scheduled_start_at).getTime()
+      : 0;
+  }
+  clockOffsetMs = new Date(pkgResult.server_now).getTime() - Date.now();
 
   // Monta UI base
   $("loading").classList.add("hidden");
@@ -41,7 +63,7 @@ async function init() {
 
   const video = $("video");
   if (webinar.video_url) video.src = webinar.video_url;
-  video.muted = true; // necessário para autoplay
+  video.muted = true;
   $("unmute").addEventListener("click", () => {
     video.muted = false;
     $("unmute").classList.add("hidden");
@@ -49,12 +71,38 @@ async function init() {
 
   renderBanners(0);
 
-  // Loop principal
+  // Ativa chat real para admin
+  if (isAdmin) setupAdminChat();
+
+  // Inscreve em live_comments via Realtime (todos os espectadores)
+  subscribeToLiveComments();
+
   tick();
   setInterval(tick, 1000);
-
-  // Re-sincroniza o relógio com o servidor a cada 60s
   setInterval(resync, 60000);
+}
+
+async function loadWebinar() {
+  const rpcArgs = { p_slug: slug };
+  if (scheduleId) rpcArgs.p_schedule_id = scheduleId;
+  const { data: pkg, error } = await supabase.rpc("get_public_webinar", rpcArgs);
+  if (error || !pkg) return null;
+  return pkg;
+}
+
+async function checkAdmin() {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    return profile?.role === "admin";
+  } catch {
+    return false;
+  }
 }
 
 function showError() {
@@ -77,7 +125,6 @@ async function resync() {
 function tick() {
   const elapsed = elapsedSeconds();
 
-  // Determina o modo
   if (!scheduledMs || elapsed < 0) setMode("waiting", elapsed);
   else if (duration && elapsed >= duration) setMode("ended");
   else setMode("live", elapsed);
@@ -87,7 +134,6 @@ function tick() {
     revealComments(elapsed);
     revealCtas(elapsed);
   }
-  // Banners e contador atualizam em qualquer modo (clampeando o tempo).
   renderBanners(mode === "live" ? elapsed : (mode === "ended" ? (duration || elapsed) : 0));
   updateViewers(elapsed);
 }
@@ -111,10 +157,8 @@ function startVideo(elapsed) {
   const doPlay = () => {
     try { video.currentTime = seekTo; } catch {}
     video.play().then(() => {
-      // Se estiver mudo (autoplay), oferece ativar som
       if (video.muted) $("unmute").classList.remove("hidden");
     }).catch(() => {
-      // Autoplay bloqueado mesmo mudo: mostra botão
       $("unmute").classList.remove("hidden");
       $("unmute").textContent = "▶ Toque para iniciar";
     });
@@ -123,7 +167,6 @@ function startVideo(elapsed) {
   else video.addEventListener("loadedmetadata", doPlay, { once: true });
 }
 
-// Corrige deriva entre o tempo do vídeo e o tempo "real" da live.
 function syncVideo(elapsed) {
   const video = $("video");
   if (!videoSynced || video.readyState < 1 || video.paused) return;
@@ -182,14 +225,72 @@ function scrollChat() {
   host.scrollTop = host.scrollHeight;
 }
 
+// ---------- Chat ao vivo do admin ----------
+function setupAdminChat() {
+  $("chat-input-fake").classList.add("hidden");
+  $("chat-input-real").classList.remove("hidden");
+
+  const input = $("chat-text");
+  const btn = $("chat-send");
+
+  const send = async () => {
+    const body = input.value.trim();
+    if (!body) return;
+    btn.disabled = true;
+    const { error } = await supabase.from("live_comments").insert({
+      webinar_id: webinarId,
+      schedule_id: webinar.schedule_id || null,
+      author_name: "ADM",
+      body,
+    });
+    btn.disabled = false;
+    if (!error) {
+      input.value = "";
+      input.focus();
+    }
+  };
+
+  btn.addEventListener("click", send);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+  });
+}
+
+// Realtime: todos os espectadores recebem comentários ao vivo do admin
+function subscribeToLiveComments() {
+  if (!webinarId) return;
+  supabase
+    .channel("live-comments-" + webinarId)
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "live_comments",
+        filter: `webinar_id=eq.${webinarId}`,
+      },
+      (payload) => {
+        const host = $("chat-messages");
+        host.appendChild(
+          buildMessage({
+            name: payload.new.author_name,
+            body: payload.new.body,
+            admin: true,
+          })
+        );
+        scrollChat();
+      }
+    )
+    .subscribe();
+}
+
 // ---------- CTA ----------
 function revealCtas(elapsed) {
   const active = data.ctas.filter((c) => c.show_at_seconds <= elapsed);
   if (active.length) {
-    const c = active[active.length - 1]; // mostra o mais recente ativo
+    const c = active[active.length - 1];
     renderCtaBar(c);
   }
-  // Posta no chat (uma vez por CTA)
   for (const c of active) {
     if (c.post_in_chat && !shownCtaChat.has(c.id)) {
       shownCtaChat.add(c.id);
@@ -202,7 +303,7 @@ function revealCtas(elapsed) {
 
 function renderCtaBar(c) {
   const bar = $("cta-bar");
-  if (bar.dataset.cta === c.id) return; // já renderizado
+  if (bar.dataset.cta === c.id) return;
   bar.dataset.cta = c.id;
   bar.classList.remove("hidden");
   bar.innerHTML = `
@@ -221,7 +322,6 @@ function renderBanners(elapsed) {
   for (const b of data.banners) {
     const visible = b.show_at_seconds <= elapsed && (b.hide_at_seconds == null || elapsed < b.hide_at_seconds);
     if (!visible || !b.image_url) continue;
-    // No mobile, banner lateral cai para "abaixo".
     const pos = (isMobile && b.position === "side") ? "below" : b.position;
     buckets[pos].push(b);
   }
@@ -240,14 +340,12 @@ function updateViewers(elapsed) {
   const v = webinar.settings?.viewers || { base: 100, peak: 600, jitter: 10 };
   let count;
   if (mode === "waiting") {
-    // Antes de começar, vai enchendo lentamente até a base.
-    const warm = Math.max(0, 60 + elapsed); // elapsed negativo
+    const warm = Math.max(0, 60 + elapsed);
     count = Math.round(v.base * Math.min(1, Math.max(0.15, (warm) / 60)));
   } else if (mode === "ended") {
     count = Math.round(v.base * 0.4);
   } else {
     const progress = duration ? Math.min(1, elapsed / duration) : 0.5;
-    // curva suave (ease-out) subindo da base ao pico
     const eased = 1 - Math.pow(1 - progress, 2);
     const baseCount = v.base + (v.peak - v.base) * eased;
     const jitter = Math.sin(elapsed / 7) * v.jitter + Math.sin(elapsed / 2.3) * (v.jitter / 2);

@@ -21,3 +21,16 @@
 .sub-item .row-head { display:flex; justify-content: space-between; align-items:center; margin-bottom:.6rem; }
 .tag { font-size:.72rem; font-weight:700; padding:.2em .6em; border-radius:999px; background: var(--bg-elev); color: var(--text-dim); }
 .tag--reply { background:#16331f; color: var(--green); }
+.tag--now { background: rgba(124,92,255,.2); color: #a78bfa; }
+.tag--relative_30 { background: rgba(232,149,10,.2); color: #fbbf24; }
+.tag--scheduled { background: var(--bg-elev); color: var(--text-dim); }
+
+/* Tabela de leads */
+.leads-table-wrap { overflow-x: auto; }
+.leads-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+.leads-table th { text-align: left; padding: .55rem .75rem; font-size: .72rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-dim); border-bottom: 1px solid var(--border); }
+.leads-table td { padding: .6rem .75rem; border-bottom: 1px solid var(--bg); vertical-align: middle; }
+.leads-table tr:last-child td { border-bottom: none; }
+.leads-table tr:hover td { background: var(--bg); }
+.leads-table a { color: var(--green); text-decoration: none; }
+.leads-table a:hover { text-decoration: underline; }

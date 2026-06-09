@@ -31,6 +31,7 @@ create table if not exists public.webinars (
   scheduled_start_at      timestamptz,             -- horário de início da "live"
   timezone                text default 'America/Sao_Paulo',
   settings                jsonb not null default '{}'::jsonb,  -- contador de espectadores, textos, etc.
+  custom_domain           text,                                -- domínio/subdomínio personalizado (ex: aula.seudomain.com.br)
   created_at              timestamptz not null default now(),
   updated_at              timestamptz not null default now()
 );

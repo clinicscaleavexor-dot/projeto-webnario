@@ -105,6 +105,12 @@
 }
 .chat-input-fake input { padding: .55em .8em; }
 
+.chat-input-real {
+  display: flex; gap: .5rem; padding: .7rem; border-top: 2px solid var(--accent);
+  background: rgba(124,92,255,.06);
+}
+.chat-input-real input { flex: 1; padding: .55em .8em; }
+
 /* Responsivo */
 @media (max-width: 900px) {
   .watch-grid { grid-template-columns: 1fr; }

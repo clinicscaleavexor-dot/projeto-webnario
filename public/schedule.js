@@ -4,6 +4,10 @@ import { escapeHtml } from "./assets/js/util.js";
 const $ = (id) => document.getElementById(id);
 const slug = new URLSearchParams(location.search).get("w");
 
+let webinarData = null;
+let serverNowMs = 0;
+let pendingSlot = null; // slot que aguarda preenchimento de lead
+
 init();
 
 async function init() {
@@ -12,13 +16,19 @@ async function init() {
   const { data: pkg, error } = await supabase.rpc("get_public_webinar", { p_slug: slug });
   if (error || !pkg) return showError();
 
+  webinarData = pkg.webinar;
+  serverNowMs = new Date(pkg.server_now).getTime();
+
   $("loading").classList.add("hidden");
   $("app").classList.remove("hidden");
 
   document.title = pkg.webinar.title + " · Escolha seu horário";
   $("webinar-title").textContent = pkg.webinar.title;
 
-  renderSlots(pkg.webinar, pkg.schedules, pkg.server_now);
+  renderSpecialSlots();
+  renderDaySlots(pkg.webinar, pkg.schedules, pkg.server_now);
+  setupLeadModal();
+  setupConfirmBack();
 }
 
 function showError() {
@@ -26,69 +36,233 @@ function showError() {
   $("error").classList.remove("hidden");
 }
 
-function watchUrl(slug, scheduleId) {
-  return new URL(`watch.html?w=${encodeURIComponent(slug)}&s=${encodeURIComponent(scheduleId)}`, location.href).href;
+function watchUrl(slug, params = {}) {
+  const url = new URL("watch.html", location.href);
+  url.searchParams.set("w", slug);
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+  return url.href;
 }
 
-function renderSlots(webinar, schedules, serverNow) {
-  const host = $("slots");
-  const now = new Date(serverNow).getTime();
+// ---------- Slots especiais: Assistir Agora e Em 30 Minutos ----------
+function renderSpecialSlots() {
+  const host = $("slots-special");
 
-  // Filtra: horários futuros ou em andamento (até 30 min após o início)
+  // Card "Assistir Agora"
+  const nowCard = document.createElement("div");
+  nowCard.className = "slot-card slot-card--now";
+  nowCard.innerHTML = `
+    <div class="slot-now-icon">▶</div>
+    <div class="slot-day">Disponível agora</div>
+    <div class="slot-time slot-time--now">Assistir Agora</div>
+    <div class="slot-label">Comece imediatamente</div>
+  `;
+  nowCard.addEventListener("click", () => {
+    window.location.href = watchUrl(webinarData.slug, { mode: "now" });
+  });
+  host.appendChild(nowCard);
+
+  // Card "Em 30 Minutos"
+  const thirtyTs = serverNowMs + 30 * 60 * 1000;
+  const thirtyDate = new Date(thirtyTs);
+  const thirtyTime = thirtyDate.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  const thirtyCard = document.createElement("div");
+  thirtyCard.className = "slot-card slot-card--soon";
+  thirtyCard.innerHTML = `
+    <div class="slot-soon-badge">Em breve</div>
+    <div class="slot-day">Próxima turma</div>
+    <div class="slot-time">${thirtyTime}</div>
+    <div class="slot-label">Em 30 minutos</div>
+  `;
+  thirtyCard.addEventListener("click", () => {
+    pendingSlot = {
+      type: "relative_30",
+      scheduled_for_ms: thirtyTs,
+      label: `às ${thirtyTime} (em 30 minutos)`,
+      watchParams: { start: String(thirtyTs) },
+    };
+    openLeadModal(`Você quer assistir às ${thirtyTime} (em 30 minutos).`);
+  });
+  host.appendChild(thirtyCard);
+}
+
+// ---------- Slots regulares agrupados por dia ----------
+function renderDaySlots(webinar, schedules, serverNow) {
+  const host = $("slots-days");
+  const now = new Date(serverNow).getTime();
+  const todayStr = toDateStr(new Date(now));
+  const tomorrowStr = toDateStr(new Date(now + 86400000));
+
+  // Filtra horários de hoje (a partir de agora - 30min) e amanhã
   const visible = (schedules || []).filter((s) => {
     const startMs = new Date(s.start_at).getTime();
     const endMs = startMs + (webinar.video_duration_seconds || 3600) * 1000;
-    return endMs > now;
+    const dateStr = toDateStr(new Date(s.start_at));
+    if (dateStr === todayStr) return endMs > now;
+    if (dateStr === tomorrowStr) return true;
+    return false;
   });
 
-  if (!visible.length) {
-    host.innerHTML = `<div class="empty">Não há sessões agendadas no momento.<br>Entre em contato para verificar os próximos horários.</div>`;
-    return;
+  if (!visible.length) return;
+
+  // Agrupa por dia
+  const groups = {};
+  for (const s of visible) {
+    const d = new Date(s.start_at);
+    const key = toDateStr(d);
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(s);
   }
 
   host.innerHTML = "";
-  for (const s of visible) {
-    const startMs = new Date(s.start_at).getTime();
-    const isLive = startMs <= now && now < startMs + (webinar.video_duration_seconds || 3600) * 1000;
-    const d = new Date(s.start_at);
-    const dayName = d.toLocaleDateString("pt-BR", { weekday: "long" });
-    const dateStr = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
-    const timeStr = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  for (const [dateKey, slots] of Object.entries(groups)) {
+    const d = new Date(slots[0].start_at);
+    const isToday = dateKey === todayStr;
+    const dayLabel = isToday
+      ? "Hoje — " + d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })
+      : "Amanhã — " + d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 
-    const card = document.createElement("div");
-    card.className = "slot-card";
-    card.innerHTML = `
-      ${isLive ? `<div class="slot-live"><span class="slot-live-dot"></span> AO VIVO AGORA</div>` : ""}
-      <div class="slot-day">${escapeHtml(dayName)}</div>
-      <div class="slot-date">${dateStr}</div>
-      <div class="slot-time">${timeStr}</div>
-      ${s.label ? `<div class="slot-label">${escapeHtml(s.label)}</div>` : ""}
-    `;
+    const section = document.createElement("div");
+    section.className = "slots-day-section";
+    section.innerHTML = `<div class="slots-day-header">${dayLabel}</div>`;
 
-    card.addEventListener("click", () => showConfirm(webinar, s, isLive, d));
-    host.appendChild(card);
+    const grid = document.createElement("div");
+    grid.className = "slots-grid";
+
+    for (const s of slots) {
+      const startMs = new Date(s.start_at).getTime();
+      const isLive = startMs <= now && now < startMs + (webinar.video_duration_seconds || 3600) * 1000;
+      const timeStr = new Date(s.start_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+      const dayName = new Date(s.start_at).toLocaleDateString("pt-BR", { weekday: "long" });
+
+      const card = document.createElement("div");
+      card.className = "slot-card";
+      card.innerHTML = `
+        ${isLive ? `<div class="slot-live"><span class="slot-live-dot"></span> AO VIVO AGORA</div>` : ""}
+        <div class="slot-day">${escapeHtml(dayName)}</div>
+        <div class="slot-time">${timeStr}</div>
+        ${s.label ? `<div class="slot-label">${escapeHtml(s.label)}</div>` : ""}
+      `;
+
+      if (isLive) {
+        card.addEventListener("click", () => showConfirm({
+          heading: "Está ao vivo agora!",
+          label: "A transmissão já está acontecendo. Clique para entrar.",
+          url: watchUrl(webinar.slug, { s: s.id }),
+        }));
+      } else {
+        card.addEventListener("click", () => {
+          pendingSlot = {
+            type: "scheduled",
+            schedule_id: s.id,
+            scheduled_for_ms: startMs,
+            label: `às ${timeStr} de ${isToday ? "hoje" : "amanhã"}`,
+            watchParams: { s: s.id },
+          };
+          openLeadModal(`Você quer assistir às ${timeStr} de ${isToday ? "hoje" : "amanhã"}.`);
+        });
+      }
+
+      grid.appendChild(card);
+    }
+
+    section.appendChild(grid);
+    host.appendChild(section);
   }
 }
 
-function showConfirm(webinar, schedule, isLive, date) {
-  const url = watchUrl(webinar.slug, schedule.id);
-  const label = date.toLocaleString("pt-BR", { weekday: "long", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+function toDateStr(date) {
+  return date.toISOString().slice(0, 10);
+}
 
+// ---------- Modal de lead ----------
+function openLeadModal(subText) {
+  $("lead-sub").textContent = "Preencha os dados abaixo para receber o link da aula no horário escolhido.";
+  if (subText) $("lead-sub").textContent = subText + " Preencha seus dados para receber o link.";
+  $("lead-name").value = "";
+  $("lead-phone").value = "";
+  $("lead-error").classList.add("hidden");
+  $("lead-modal").classList.remove("hidden");
+  setTimeout(() => $("lead-name").focus(), 80);
+}
+
+function closeLeadModal() {
+  $("lead-modal").classList.add("hidden");
+  pendingSlot = null;
+}
+
+function setupLeadModal() {
+  $("lead-backdrop").addEventListener("click", closeLeadModal);
+  $("lead-cancel").addEventListener("click", closeLeadModal);
+  $("lead-submit").addEventListener("click", submitLead);
+  $("lead-name").addEventListener("keydown", (e) => { if (e.key === "Enter") $("lead-phone").focus(); });
+  $("lead-phone").addEventListener("keydown", (e) => { if (e.key === "Enter") submitLead(); });
+}
+
+async function submitLead() {
+  const name = $("lead-name").value.trim();
+  const phone = $("lead-phone").value.trim();
+
+  if (!name || !phone) {
+    showLeadError("Preencha nome e telefone para continuar.");
+    return;
+  }
+
+  const btn = $("lead-submit");
+  btn.disabled = true;
+  btn.textContent = "Salvando...";
+
+  const payload = {
+    webinar_id: webinarData.id,
+    name,
+    phone,
+    scheduled_for: new Date(pendingSlot.scheduled_for_ms).toISOString(),
+    schedule_type: pendingSlot.type,
+    schedule_id: pendingSlot.schedule_id || null,
+  };
+
+  const { error } = await supabase.from("schedule_leads").insert(payload);
+
+  btn.disabled = false;
+  btn.textContent = "Confirmar horário";
+
+  if (error) {
+    showLeadError("Erro ao salvar. Tente novamente.");
+    return;
+  }
+
+  closeLeadModal();
+
+  const url = watchUrl(webinarData.slug, pendingSlot.watchParams);
+  showConfirm({
+    heading: "Vaga confirmada!",
+    label: `Seu horário foi reservado. Clique no link abaixo ${pendingSlot.label} para entrar na aula.`,
+    url,
+  });
+}
+
+function showLeadError(msg) {
+  const el = $("lead-error");
+  el.textContent = msg;
+  el.classList.remove("hidden");
+}
+
+// ---------- Confirmação final ----------
+function showConfirm({ heading, label, url }) {
   $("slots").classList.add("hidden");
   $("confirm-box").classList.remove("hidden");
-  $("confirm-label").textContent = isLive
-    ? `A transmissão já está ao vivo! Clique para entrar.`
-    : `${label.charAt(0).toUpperCase() + label.slice(1)}`;
+  $("confirm-heading").textContent = heading || "Horário confirmado!";
+  $("confirm-label").textContent = label;
   $("confirm-watch").href = url;
-  $("confirm-watch").textContent = isLive ? "Entrar na live agora" : "Acessar transmissão";
 
   $("copy-confirm").onclick = async () => {
     try { await navigator.clipboard.writeText(url); $("copy-confirm").textContent = "Copiado!"; }
     catch { alert(url); }
   };
+}
 
-  $("back-btn").onclick = () => {
+function setupConfirmBack() {
+  $("back-btn").addEventListener("click", () => {
     $("confirm-box").classList.add("hidden");
     $("slots").classList.remove("hidden");
-  };
+  });
 }
