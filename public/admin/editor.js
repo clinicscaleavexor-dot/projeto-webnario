@@ -8,11 +8,12 @@ import {
 const params = new URLSearchParams(location.search);
 const WID = params.get("id");
 let webinar = null;
+let profile = null;
 
 const $ = (id) => document.getElementById(id);
 
 (async function init() {
-  const profile = await requireAuth();
+  profile = await requireAuth();
   if (!profile) return;
   if (!WID) { toast("Webinário não informado.", "error"); return; }
 
@@ -76,16 +77,12 @@ async function loadWebinar() {
   $("v-jitter").value = v.jitter ?? 12;
   $("waiting-text").value = s.waiting_text || "";
   $("ended-text").value = s.ended_text || "";
-  $("custom-domain").value = data.custom_domain || "";
-
   if (data.video_url) {
     showVideoPreview(data.video_url);
     // Auto-detecta duração do YouTube se ainda não estiver salva
     if (!data.video_duration_seconds && extractYouTubeId(data.video_url)) {
-      const hint = $("yt-dur-hint");
-      hint.classList.remove("hidden");
+      $("yt-dur-hint").classList.remove("hidden");
       detectYouTubeDuration(extractYouTubeId(data.video_url)).then((dur) => {
-        hint.classList.add("hidden");
         if (dur && !$("video-duration").value) $("video-duration").value = fmtClock(dur);
       });
     }
@@ -98,9 +95,8 @@ async function loadWebinar() {
 }
 
 function publicUrl(slug, page = "watch.html") {
-  if (webinar?.custom_domain) {
-    return `https://${webinar.custom_domain}/${page}?w=${encodeURIComponent(slug)}`;
-  }
+  const domain = profile?.custom_domain;
+  if (domain) return `https://${domain}/${page}?w=${encodeURIComponent(slug)}`;
   return new URL(`${page}?w=${encodeURIComponent(slug)}`, new URL("../", location.href)).href;
 }
 function updateLinks() {
@@ -133,7 +129,6 @@ async function saveCore() {
     video_url: $("video-url").value.trim() || null,
     video_duration_seconds: parseClock($("video-duration").value) || null,
     timezone: $("timezone").value.trim() || "America/Sao_Paulo",
-    custom_domain: $("custom-domain").value.trim().replace(/^https?:\/\//i, "") || null,
     settings,
   };
 
@@ -213,6 +208,26 @@ function loadYouTubeApiEditor() {
 
 function detectYouTubeDuration(videoId) {
   return new Promise((resolve) => {
+    const hint = $("yt-dur-hint");
+    let settled = false;
+    const finish = (val) => {
+      if (settled) return;
+      settled = true;
+      if (!val) {
+        hint.textContent = "Não foi possível detectar a duração. Insira manualmente no campo acima.";
+        hint.style.color = "var(--error, #f87171)";
+        hint.classList.remove("hidden");
+      } else {
+        hint.classList.add("hidden");
+        hint.style.color = "";
+        hint.textContent = "Duração detectando automaticamente via YouTube...";
+      }
+      resolve(val);
+    };
+
+    // Timeout de 15 segundos
+    const timer = setTimeout(() => finish(null), 15000);
+
     loadYouTubeApiEditor().then(() => {
       const probe = document.createElement("div");
       probe.id = "yt-probe-" + Date.now();
@@ -223,14 +238,19 @@ function detectYouTubeDuration(videoId) {
         playerVars: { autoplay: 0 },
         events: {
           onReady(e) {
+            clearTimeout(timer);
             const dur = e.target.getDuration();
             try { e.target.destroy(); probe.remove(); } catch {}
-            resolve(dur > 0 ? Math.round(dur) : null);
+            finish(dur > 0 ? Math.round(dur) : null);
           },
-          onError() { try { probe.remove(); } catch {} resolve(null); },
+          onError() {
+            clearTimeout(timer);
+            try { probe.remove(); } catch {}
+            finish(null);
+          },
         },
       });
-    });
+    }).catch(() => { clearTimeout(timer); finish(null); });
   });
 }
 
@@ -242,10 +262,8 @@ async function onVideoUrlChange() {
   const ytId = extractYouTubeId(url);
   if (ytId) {
     if ($("video-duration").value) return; // já preenchido pelo usuário
-    const hint = $("yt-dur-hint");
-    hint.classList.remove("hidden");
+    $("yt-dur-hint").classList.remove("hidden");
     const dur = await detectYouTubeDuration(ytId);
-    hint.classList.add("hidden");
     if (dur) $("video-duration").value = fmtClock(dur);
   } else {
     const dur = await detectDuration(url);

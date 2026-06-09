@@ -25,7 +25,7 @@ export async function getMyProfile() {
   if (!u?.user) return null;
   const { data } = await supabase
     .from("profiles")
-    .select("id, role, name")
+    .select("id, role, name, custom_domain")
     .eq("id", u.user.id)
     .single();
   return data ?? { id: u.user.id, role: "user", name: u.user.email };
