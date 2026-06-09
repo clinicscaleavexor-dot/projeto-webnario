@@ -78,7 +78,18 @@ async function loadWebinar() {
   $("ended-text").value = s.ended_text || "";
   $("custom-domain").value = data.custom_domain || "";
 
-  if (data.video_url) showVideoPreview(data.video_url);
+  if (data.video_url) {
+    showVideoPreview(data.video_url);
+    // Auto-detecta duração do YouTube se ainda não estiver salva
+    if (!data.video_duration_seconds && extractYouTubeId(data.video_url)) {
+      const hint = $("yt-dur-hint");
+      hint.classList.remove("hidden");
+      detectYouTubeDuration(extractYouTubeId(data.video_url)).then((dur) => {
+        hint.classList.add("hidden");
+        if (dur && !$("video-duration").value) $("video-duration").value = fmtClock(dur);
+      });
+    }
+  }
   updatePublishBtn();
   updateLinks();
 
@@ -151,9 +162,30 @@ function updatePublishBtn() {
 }
 
 // ---------- Vídeo: upload e URL ----------
+
+function extractYouTubeId(url) {
+  if (!url) return null;
+  const m = url.match(
+    /(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/
+  );
+  return m ? m[1] : null;
+}
+
 function showVideoPreview(url) {
   $("video-preview-wrap").classList.remove("hidden");
-  $("video-preview").src = url;
+  const ytId = extractYouTubeId(url);
+  if (ytId) {
+    $("video-preview").classList.add("hidden");
+    $("video-preview").src = "";
+    const iframe = $("yt-preview");
+    iframe.classList.remove("hidden");
+    iframe.src = `https://www.youtube.com/embed/${ytId}?rel=0&modestbranding=1`;
+  } else {
+    $("yt-preview").classList.add("hidden");
+    $("yt-preview").src = "";
+    $("video-preview").classList.remove("hidden");
+    $("video-preview").src = url;
+  }
 }
 
 function detectDuration(srcFileOrUrl) {
@@ -166,12 +198,59 @@ function detectDuration(srcFileOrUrl) {
   });
 }
 
+function loadYouTubeApiEditor() {
+  return new Promise((resolve) => {
+    if (window.YT && window.YT.Player) { resolve(); return; }
+    const prev = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => { if (typeof prev === "function") prev(); resolve(); };
+    if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
+      const tag = document.createElement("script");
+      tag.src = "https://www.youtube.com/iframe_api";
+      document.head.appendChild(tag);
+    }
+  });
+}
+
+function detectYouTubeDuration(videoId) {
+  return new Promise((resolve) => {
+    loadYouTubeApiEditor().then(() => {
+      const probe = document.createElement("div");
+      probe.id = "yt-probe-" + Date.now();
+      probe.style.cssText = "position:fixed;left:-9999px;width:1px;height:1px;overflow:hidden;";
+      document.body.appendChild(probe);
+      new YT.Player(probe.id, {
+        videoId,
+        playerVars: { autoplay: 0 },
+        events: {
+          onReady(e) {
+            const dur = e.target.getDuration();
+            try { e.target.destroy(); probe.remove(); } catch {}
+            resolve(dur > 0 ? Math.round(dur) : null);
+          },
+          onError() { try { probe.remove(); } catch {} resolve(null); },
+        },
+      });
+    });
+  });
+}
+
 async function onVideoUrlChange() {
   const url = $("video-url").value.trim();
   if (!url) return;
   showVideoPreview(url);
-  const dur = await detectDuration(url);
-  if (dur && !$("video-duration").value) $("video-duration").value = fmtClock(dur);
+
+  const ytId = extractYouTubeId(url);
+  if (ytId) {
+    if ($("video-duration").value) return; // já preenchido pelo usuário
+    const hint = $("yt-dur-hint");
+    hint.classList.remove("hidden");
+    const dur = await detectYouTubeDuration(ytId);
+    hint.classList.add("hidden");
+    if (dur) $("video-duration").value = fmtClock(dur);
+  } else {
+    const dur = await detectDuration(url);
+    if (dur && !$("video-duration").value) $("video-duration").value = fmtClock(dur);
+  }
 }
 
 async function onVideoFile(e) {

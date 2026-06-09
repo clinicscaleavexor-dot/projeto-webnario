@@ -6,6 +6,7 @@
 .progress__bar { height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width .2s; }
 
 .video-preview { width: 100%; max-height: 360px; border-radius: var(--radius-sm); background: #000; margin-top: .4rem; }
+#yt-preview { aspect-ratio: 16/9; max-height: 360px; border-radius: var(--radius-sm); }
 
 .info-box {
   background: var(--bg); border: 1px dashed var(--border);
