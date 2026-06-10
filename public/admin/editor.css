@@ -22,6 +22,7 @@
 .sub-item .row-head { display:flex; justify-content: space-between; align-items:center; margin-bottom:.6rem; }
 .tag { font-size:.72rem; font-weight:700; padding:.2em .6em; border-radius:999px; background: var(--bg-elev); color: var(--text-dim); }
 .tag--reply { background:#16331f; color: var(--green); }
+.tag--recurrence { background: rgba(14,165,233,.15); color: #38bdf8; }
 .tag--now { background: rgba(124,92,255,.2); color: #a78bfa; }
 .tag--relative_30 { background: rgba(232,149,10,.2); color: #fbbf24; }
 .tag--scheduled { background: var(--bg-elev); color: var(--text-dim); }

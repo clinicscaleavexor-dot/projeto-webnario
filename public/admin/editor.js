@@ -29,6 +29,12 @@ const $ = (id) => document.getElementById(id);
   $("add-cta").addEventListener("click", () => addChild("ctas"));
   $("add-banner").addEventListener("click", () => addChild("banners"));
   $("add-schedule").addEventListener("click", addSchedule);
+  $("add-recurrence").addEventListener("click", openRecurrenceForm);
+  $("rec-cancel").addEventListener("click", () => $("recurrence-form").classList.add("hidden"));
+  $("rec-save").addEventListener("click", saveRecurrence);
+  $("rec-type").addEventListener("change", () => {
+    $("rec-interval-wrap").hidden = $("rec-type").value !== "every_n_days";
+  });
   $("leads-refresh").addEventListener("click", () => loadLeads());
   $("leads-filter").addEventListener("change", () => loadLeads());
   $("leads-export").addEventListener("click", exportLeadsCsv);
@@ -536,12 +542,65 @@ async function renderSchedules() {
     .order("start_at", { ascending: true });
 
   if (!data || !data.length) {
-    host.innerHTML = `<div class="empty">Nenhum horário cadastrado. Clique em <b>+ Adicionar horário</b>.</div>`;
+    host.innerHTML = `<div class="empty">Nenhum horário cadastrado. Clique em <b>+ Horário único</b> ou <b>↺ Recorrência</b>.</div>`;
     return;
   }
 
   host.innerHTML = "";
+  const now = Date.now();
+
+  // Separa linhas únicas das recorrentes (agrupadas por recurrence_group_id)
+  const singles = data.filter((s) => !s.recurrence_group_id);
+  const groups = {};
   for (const s of data) {
+    if (!s.recurrence_group_id) continue;
+    if (!groups[s.recurrence_group_id]) groups[s.recurrence_group_id] = [];
+    groups[s.recurrence_group_id].push(s);
+  }
+
+  // ---- Grupos de recorrência ----
+  for (const [gid, rows] of Object.entries(groups)) {
+    const template = rows[0];
+    const intervalDays = template.recurrence_type === "weekly" ? 7 : (template.recurrence_interval || 3);
+    const typeLabel = template.recurrence_type === "weekly" ? "Semanal" : `A cada ${intervalDays} dias`;
+    const futureRows = rows.filter((r) => new Date(r.start_at).getTime() > now);
+    const nextRow = futureRows[0]; // já ordenado por start_at asc
+    const nextLabel = nextRow
+      ? new Date(nextRow.start_at).toLocaleString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
+      : "nenhuma futura";
+
+    const el = document.createElement("div");
+    el.className = "sub-item";
+    el.innerHTML = `
+      <div class="row-head">
+        <span class="tag tag--recurrence">↺ ${escapeHtml(typeLabel)}</span>
+        <span class="muted" style="font-size:.82rem;flex:1;margin-left:.7rem;">
+          ${rows.length} ocorrência${rows.length !== 1 ? "s" : ""} · ${futureRows.length} futuras · próxima: <strong>${nextLabel}</strong>
+        </span>
+        <button class="btn btn--sm btn--danger" data-act="del-group">Excluir regra</button>
+      </div>
+      ${template.label ? `<div class="muted" style="font-size:.83rem;margin:.2rem 0 .5rem;">Rótulo: ${escapeHtml(template.label)}</div>` : ""}
+      <div class="muted" style="font-size:.82rem;margin-bottom:.6rem;">
+        Âncora: ${new Date(template.start_at).toLocaleString("pt-BR")} · intervalo: ${intervalDays} dias
+      </div>
+      <button class="btn btn--sm" data-act="regen">↺ Regenerar (próximas 8 semanas a partir de agora)</button>`;
+
+    el.querySelector('[data-act="del-group"]').addEventListener("click", async () => {
+      if (!confirm(`Excluir toda a regra de recorrência e suas ${rows.length} ocorrência(s)?`)) return;
+      const { error } = await supabase.from("webinar_schedules").delete()
+        .eq("webinar_id", WID).eq("recurrence_group_id", gid);
+      if (error) return toast("Erro: " + error.message, "error");
+      toast("Regra excluída.", "success");
+      await renderSchedules();
+    });
+
+    el.querySelector('[data-act="regen"]').addEventListener("click", () => regenerateGroup(gid, template));
+
+    host.appendChild(el);
+  }
+
+  // ---- Horários únicos ----
+  for (const s of singles) {
     const rel = scheduleRelLabel(s.start_at);
     const el = document.createElement("div");
     el.className = "sub-item";
@@ -589,8 +648,104 @@ async function addSchedule() {
   const { error } = await supabase.from("webinar_schedules").insert({
     webinar_id: WID,
     start_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+    recurrence_type: "once",
   });
   if (error) return toast("Erro: " + error.message, "error");
+  await renderSchedules();
+}
+
+// =====================================================================
+//  RECORRÊNCIA
+// =====================================================================
+function openRecurrenceForm() {
+  const form = $("recurrence-form");
+  form.classList.remove("hidden");
+  // Pré-preenche com amanhã no mesmo horário
+  const d = new Date(Date.now() + 86400000);
+  d.setSeconds(0, 0);
+  $("rec-anchor").value = isoToLocalInput(d.toISOString());
+  form.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function buildOccurrences(anchorIso, recType, intervalDays, weeksAhead, label) {
+  const anchor = new Date(anchorIso).getTime();
+  const intervalMs = intervalDays * 86400000;
+  const limitMs = Date.now() + weeksAhead * 7 * 86400000;
+  const groupId = crypto.randomUUID();
+  const rows = [];
+
+  // Começa da própria âncora se for no futuro; senão avança até a próxima ocorrência futura
+  let t = anchor;
+  const now = Date.now();
+  if (t < now - 60000) {
+    const missed = Math.ceil((now - t) / intervalMs);
+    t += missed * intervalMs;
+  }
+
+  while (t <= limitMs) {
+    rows.push({
+      webinar_id: WID,
+      start_at: new Date(t).toISOString(),
+      label: label || null,
+      active: true,
+      recurrence_type: recType,
+      recurrence_interval: recType === "every_n_days" ? intervalDays : null,
+      recurrence_group_id: groupId,
+    });
+    t += intervalMs;
+  }
+  return rows;
+}
+
+async function saveRecurrence() {
+  const anchorIso = localInputToISO($("rec-anchor").value);
+  if (!anchorIso) return toast("Informe a data e hora da primeira ocorrência.", "error");
+
+  const recType = $("rec-type").value;
+  const intervalDays = recType === "weekly" ? 7 : (parseInt($("rec-interval").value, 10) || 3);
+  const weeksAhead = parseInt($("rec-weeks").value, 10) || 8;
+  const label = $("rec-label").value.trim() || null;
+
+  const rows = buildOccurrences(anchorIso, recType, intervalDays, weeksAhead, label);
+  if (!rows.length) return toast("Nenhuma ocorrência gerada no período informado.", "error");
+
+  const btn = $("rec-save");
+  btn.disabled = true; btn.textContent = "Criando...";
+
+  const { error } = await supabase.from("webinar_schedules").insert(rows);
+  btn.disabled = false; btn.textContent = "Criar recorrência";
+
+  if (error) return toast("Erro: " + error.message, "error");
+
+  $("recurrence-form").classList.add("hidden");
+  toast(`${rows.length} ocorrência${rows.length !== 1 ? "s" : ""} criada${rows.length !== 1 ? "s" : ""}!`, "success");
+  await renderSchedules();
+}
+
+async function regenerateGroup(groupId, template) {
+  if (!confirm("Isso vai excluir todas as ocorrências futuras desta regra e gerar novas 8 semanas. Confirmar?")) return;
+
+  const intervalDays = template.recurrence_type === "weekly" ? 7 : (template.recurrence_interval || 3);
+
+  // Deleta ocorrências futuras do grupo
+  const { error: delErr } = await supabase.from("webinar_schedules")
+    .delete()
+    .eq("webinar_id", WID)
+    .eq("recurrence_group_id", groupId)
+    .gt("start_at", new Date().toISOString());
+  if (delErr) return toast("Erro ao remover antigas: " + delErr.message, "error");
+
+  // Gera novas a partir de agora (mesma hora de âncora)
+  const rows = buildOccurrences(template.start_at, template.recurrence_type, intervalDays, 8, template.label);
+  // Atribui o mesmo group id
+  rows.forEach((r) => { r.recurrence_group_id = groupId; });
+
+  if (!rows.length) { toast("Nenhuma ocorrência gerada.", "error"); return; }
+
+  const { error } = await supabase.from("webinar_schedules").insert(rows);
+  if (error) return toast("Erro: " + error.message, "error");
+
+  toast(`${rows.length} ocorrência${rows.length !== 1 ? "s" : ""} gerada${rows.length !== 1 ? "s" : ""}!`, "success");
   await renderSchedules();
 }
 
