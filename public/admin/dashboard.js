@@ -15,6 +15,7 @@ let profile = null;
   }
   document.getElementById("logout").addEventListener("click", signOut);
   document.getElementById("new-webinar").addEventListener("click", createWebinar);
+  setupDashTabs();
 
   // Preenche campo de domínio da conta
   const domainInput = document.getElementById("account-domain");
@@ -167,4 +168,97 @@ async function remove(id, title) {
   if (error) return toast("Erro: " + error.message, "error");
   toast("Webinário excluído.", "success");
   await loadList();
+}
+
+// =====================================================================
+//  ABAS DO DASHBOARD
+// =====================================================================
+function setupDashTabs() {
+  document.querySelectorAll("#dash-tabs .tab").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      document.querySelectorAll("#dash-tabs .tab").forEach((t) => t.classList.remove("active"));
+      document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
+      tab.classList.add("active");
+      document.querySelector(`[data-panel="${tab.dataset.tab}"]`).classList.add("active");
+      if (tab.dataset.tab === "metrics") loadMetrics();
+    });
+  });
+}
+
+// =====================================================================
+//  MÉTRICAS
+// =====================================================================
+async function loadMetrics() {
+  const el = document.getElementById("metrics-content");
+  el.innerHTML = `<p class="muted">Carregando...</p>`;
+
+  const { data, error } = await supabase.rpc("get_my_metrics");
+  if (error || !data) {
+    el.innerHTML = `<div class="empty">Erro ao carregar métricas. Verifique se o SQL foi executado no Supabase.</div>`;
+    return;
+  }
+  if (!data.length) {
+    el.innerHTML = `<div class="empty">Nenhum webinário ainda.</div>`;
+    return;
+  }
+
+  const totals = data.reduce((a, r) => ({
+    leads: a.leads + (+r.leads || 0),
+    schedule_views: a.schedule_views + (+r.schedule_views || 0),
+    modal_opens: a.modal_opens + (+r.modal_opens || 0),
+    watch_views: a.watch_views + (+r.watch_views || 0),
+    cta_clicks: a.cta_clicks + (+r.cta_clicks || 0),
+  }), { leads: 0, schedule_views: 0, modal_opens: 0, watch_views: 0, cta_clicks: 0 });
+
+  const fmtTime = (s) => {
+    s = +s || 0;
+    return `${Math.floor(s / 60)}m ${s % 60}s`;
+  };
+
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:.8rem;margin-bottom:1.2rem;">
+      ${statCard("Leads cadastrados", totals.leads)}
+      ${statCard("Acessos agendamento", totals.schedule_views)}
+      ${statCard("Modal de captura", totals.modal_opens)}
+      ${statCard("Assistiram", totals.watch_views)}
+      ${statCard("Cliques CTA", totals.cta_clicks)}
+    </div>
+    <div class="card" style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:.86rem;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border);color:var(--text-dim);">
+            <th style="text-align:left;padding:.6rem .8rem;font-weight:600;">Webinário</th>
+            <th style="text-align:right;padding:.6rem .8rem;">Agend.</th>
+            <th style="text-align:right;padding:.6rem .8rem;">Modal</th>
+            <th style="text-align:right;padding:.6rem .8rem;">Leads</th>
+            <th style="text-align:right;padding:.6rem .8rem;">Assistiram</th>
+            <th style="text-align:right;padding:.6rem .8rem;">Tempo médio</th>
+            <th style="text-align:right;padding:.6rem .8rem;">CTA</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${data.map((r) => `
+            <tr style="border-bottom:1px solid var(--bg);">
+              <td style="padding:.6rem .8rem;">
+                <strong>${escapeHtml(r.title)}</strong>
+                <span class="badge badge--${r.status}" style="margin-left:.4rem;">${r.status === "published" ? "Publicado" : "Rascunho"}</span>
+              </td>
+              <td style="text-align:right;padding:.6rem .8rem;">${r.schedule_views}</td>
+              <td style="text-align:right;padding:.6rem .8rem;">${r.modal_opens}</td>
+              <td style="text-align:right;padding:.6rem .8rem;">${r.leads}</td>
+              <td style="text-align:right;padding:.6rem .8rem;">${r.watch_views}</td>
+              <td style="text-align:right;padding:.6rem .8rem;">${fmtTime(r.avg_watch_seconds)}</td>
+              <td style="text-align:right;padding:.6rem .8rem;">${r.cta_clicks}</td>
+            </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function statCard(label, value) {
+  return `
+    <div class="card" style="padding:1rem;text-align:center;">
+      <div style="font-size:1.8rem;font-weight:800;color:var(--accent);">${Number(value).toLocaleString("pt-BR")}</div>
+      <div style="font-size:.78rem;color:var(--text-dim);margin-top:.3rem;">${escapeHtml(label)}</div>
+    </div>`;
 }

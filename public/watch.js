@@ -43,6 +43,7 @@ async function init() {
   webinarId = webinar.id;
   duration = webinar.video_duration_seconds || 0;
   isAdmin = adminResult;
+  trackEvent(webinarId, "watch_view");
 
   if (modeParam === "now") {
     scheduledMs = new Date(pkgResult.server_now).getTime();
@@ -93,6 +94,10 @@ async function init() {
   tick();
   setInterval(tick, 1000);
   setInterval(resync, 60000);
+  setInterval(() => {
+    const secs = Math.floor(elapsedSeconds());
+    if (secs > 0 && mode === "live") trackEvent(webinarId, "watch_heartbeat", { value: secs });
+  }, 60000);
 }
 
 // ---------- YouTube helpers ----------
@@ -377,6 +382,9 @@ function renderCtaBar(c) {
       <span class="cta-text">Oferta liberada! Não perca.</span>
       <a class="btn btn--primary" href="${escapeHtml(c.url)}" target="_blank" rel="noopener">${escapeHtml(c.label)}</a>
     </div>`;
+  bar.querySelector(".btn").addEventListener("click", () => {
+    trackEvent(webinarId, "cta_click", { metadata: { cta_id: c.id, cta_label: c.label } });
+  });
 }
 
 // ---------- Banners ----------
@@ -421,4 +429,14 @@ function updateViewers(elapsed) {
   $("viewer-count").textContent = txt;
   const v2 = $("viewer-count-2");
   if (v2) v2.textContent = txt;
+}
+
+// ---------- Rastreamento ----------
+function trackEvent(webinarId, eventType, extra = {}) {
+  supabase.from("webinar_events").insert({
+    webinar_id: webinarId,
+    event_type: eventType,
+    value: extra.value ?? null,
+    metadata: extra.metadata ?? null,
+  }).then();
 }

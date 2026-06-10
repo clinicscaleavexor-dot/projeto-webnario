@@ -29,6 +29,7 @@ async function init() {
   renderDaySlots(pkg.webinar, pkg.schedules, pkg.server_now);
   setupLeadModal();
   setupConfirmBack();
+  trackEvent(webinarData.id, "schedule_view");
 }
 
 function showError() {
@@ -176,6 +177,7 @@ function toDateStr(date) {
 
 // ---------- Modal de lead ----------
 function openLeadModal(subText) {
+  trackEvent(webinarData.id, "modal_open");
   $("lead-sub").textContent = "Preencha os dados abaixo para receber o link da aula no horário escolhido.";
   if (subText) $("lead-sub").textContent = subText + " Preencha seus dados para receber o link.";
   $("lead-name").value = "";
@@ -265,4 +267,14 @@ function setupConfirmBack() {
     $("confirm-box").classList.add("hidden");
     $("slots").classList.remove("hidden");
   });
+}
+
+// ---------- Rastreamento ----------
+function trackEvent(webinarId, eventType, extra = {}) {
+  supabase.from("webinar_events").insert({
+    webinar_id: webinarId,
+    event_type: eventType,
+    value: extra.value ?? null,
+    metadata: extra.metadata ?? null,
+  }).then();
 }

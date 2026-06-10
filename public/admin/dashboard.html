@@ -38,15 +38,25 @@
       </small>
     </div>
 
-    <div class="row spread wrap">
-      <div>
-        <h1 class="mb0">Meus webinários</h1>
-        <small class="muted">Crie e gerencie suas lives simuladas.</small>
+    <nav class="tabs" id="dash-tabs">
+      <button class="tab active" data-tab="webinars">Meus webinários</button>
+      <button class="tab" data-tab="metrics">Métricas</button>
+    </nav>
+
+    <div class="tab-panel active" data-panel="webinars">
+      <div class="row spread wrap">
+        <div>
+          <h1 class="mb0">Meus webinários</h1>
+          <small class="muted">Crie e gerencie suas lives simuladas.</small>
+        </div>
+        <button class="btn btn--primary" id="new-webinar">+ Novo webinário</button>
       </div>
-      <button class="btn btn--primary" id="new-webinar">+ Novo webinário</button>
+      <div id="list" class="list"></div>
     </div>
 
-    <div id="list" class="list"></div>
+    <div class="tab-panel" data-panel="metrics">
+      <div id="metrics-content"><p class="muted">Carregando métricas...</p></div>
+    </div>
   </main>
 
   <script type="module" src="dashboard.js"></script>
