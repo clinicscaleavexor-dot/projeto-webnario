@@ -57,6 +57,22 @@
           <button id="unmute" class="unmute-btn hidden">🔇 Toque para ativar o som</button>
         </div>
 
+        <!-- Admin: controle de tempo para testes (somente admin/dono) -->
+        <div id="admin-scrubber" class="admin-scrubber hidden">
+          <div class="as-row">
+            <span class="as-label">⏩ Teste admin</span>
+            <span id="as-time" class="as-time">0:00 / 0:00</span>
+            <button id="as-reset" class="btn btn--sm btn--ghost">↺ Real</button>
+          </div>
+          <input type="range" id="as-range" min="0" max="3600" value="0" step="1" class="as-range" />
+          <div class="as-btns">
+            <button class="btn btn--sm btn--ghost as-jump" data-secs="30">+30s</button>
+            <button class="btn btn--sm btn--ghost as-jump" data-secs="60">+1 min</button>
+            <button class="btn btn--sm btn--ghost as-jump" data-secs="300">+5 min</button>
+            <button class="btn btn--sm btn--ghost as-jump" data-secs="600">+10 min</button>
+          </div>
+        </div>
+
         <!-- Barra de CTA -->
         <div id="cta-bar" class="cta-bar hidden"></div>
 

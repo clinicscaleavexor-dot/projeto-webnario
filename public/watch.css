@@ -113,6 +113,24 @@
 }
 .chat-input-real input { flex: 1; padding: .55em .8em; }
 
+/* Admin scrubber */
+.admin-scrubber {
+  background: rgba(14,165,233,.07);
+  border: 1px solid rgba(14,165,233,.3);
+  border-radius: var(--radius-sm);
+  padding: .6rem .9rem;
+  margin: .6rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: .45rem;
+}
+.as-row { display: flex; align-items: center; gap: .7rem; }
+.as-label { font-size: .75rem; font-weight: 800; color: #38bdf8; text-transform: uppercase; letter-spacing: .06em; }
+.as-time { flex: 1; font-size: .82rem; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.as-range { width: 100%; accent-color: #38bdf8; cursor: pointer; }
+.as-btns { display: flex; gap: .4rem; flex-wrap: wrap; }
+.as-btns .btn { font-size: .78rem; padding: .3em .7em; }
+
 /* Responsivo */
 @media (max-width: 900px) {
   .watch-grid { grid-template-columns: 1fr; }

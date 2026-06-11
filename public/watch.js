@@ -19,6 +19,7 @@ const shownCtaChat = new Set();
 let videoSynced = false;
 let isAdmin = false;
 let webinarId = null;
+let adminTimeShift = 0; // segundos de avanço para testes (somente admin)
 
 // --- YouTube ---
 let isYouTube = false;
@@ -88,7 +89,7 @@ async function init() {
   });
 
   renderBanners(0);
-  if (isAdmin) setupAdminChat();
+  if (isAdmin) { setupAdminChat(); setupAdminScrubber(); }
   subscribeToLiveComments();
 
   tick();
@@ -222,7 +223,11 @@ async function checkAdmin() {
     if (!user) return false;
     const { data: profile } = await supabase
       .from("profiles").select("role").eq("id", user.id).single();
-    return profile?.role === "admin";
+    if (profile?.role === "admin") return true;
+    // Dono do webinário também tem acesso admin na própria live
+    const { data: owned } = await supabase
+      .from("webinars").select("id").eq("slug", slug).eq("owner_id", user.id).limit(1);
+    return (owned?.length ?? 0) > 0;
   } catch { return false; }
 }
 
@@ -234,7 +239,7 @@ function showError() {
 function serverNow() { return Date.now() + clockOffsetMs; }
 function elapsedSeconds() {
   if (!scheduledMs) return 0;
-  return (serverNow() - scheduledMs) / 1000;
+  return (serverNow() - scheduledMs) / 1000 + adminTimeShift;
 }
 
 async function resync() {
@@ -256,6 +261,7 @@ function tick() {
   }
   renderBanners(mode === "live" ? elapsed : (mode === "ended" ? (duration || elapsed) : 0));
   updateViewers(elapsed);
+  if (isAdmin) updateAdminScrubber(elapsed);
 }
 
 function setMode(next, elapsed) {
@@ -283,7 +289,7 @@ function updateCountdown(elapsed) {
 function revealComments(elapsed) {
   const host = $("chat-messages");
   for (const c of data.comments) {
-    if (c.show_at_seconds <= elapsed && !shownComments.has(c.id)) {
+    if (c.show_at_seconds != null && c.show_at_seconds <= elapsed && !shownComments.has(c.id)) {
       shownComments.add(c.id);
       host.appendChild(buildMessage({ name: c.author_name, body: c.body, admin: c.type === "admin_reply" }));
       scrollChat();
@@ -342,6 +348,58 @@ function setupAdminChat() {
   });
 }
 
+// ---------- Admin scrubber de tempo ----------
+function setupAdminScrubber() {
+  const panel = $("admin-scrubber");
+  panel.classList.remove("hidden");
+
+  const range = $("as-range");
+  if (duration > 0) range.max = duration;
+
+  document.querySelectorAll(".as-jump").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      adminSeek(Math.min(elapsedSeconds() + parseInt(btn.dataset.secs, 10), duration || 7200));
+    });
+  });
+
+  range.addEventListener("change", () => adminSeek(parseInt(range.value, 10)));
+
+  $("as-reset").addEventListener("click", () => {
+    adminTimeShift = 0;
+    shownComments.clear();
+    shownCtaChat.clear();
+    $("cta-bar").classList.add("hidden");
+    delete $("cta-bar").dataset.cta;
+    videoSynced = false;
+    tick();
+  });
+}
+
+function adminSeek(targetSeconds) {
+  const prevElapsed = elapsedSeconds();
+  const realElapsed = (serverNow() - scheduledMs) / 1000;
+  adminTimeShift = targetSeconds - realElapsed;
+
+  // Ao voltar no tempo, limpa o que já foi exibido para re-disparar
+  if (targetSeconds < prevElapsed) {
+    shownComments.clear();
+    shownCtaChat.clear();
+    $("cta-bar").classList.add("hidden");
+    delete $("cta-bar").dataset.cta;
+  }
+
+  startVideo(Math.max(0, targetSeconds));
+  tick();
+}
+
+function updateAdminScrubber(elapsed) {
+  const range = $("as-range");
+  if (!range || document.activeElement === range) return;
+  const e = Math.max(0, elapsed);
+  range.value = Math.floor(e);
+  $("as-time").textContent = fmtClock(e) + " / " + fmtClock(duration || 3600);
+}
+
 function subscribeToLiveComments() {
   if (!webinarId) return;
   supabase
@@ -360,7 +418,7 @@ function subscribeToLiveComments() {
 
 // ---------- CTA ----------
 function revealCtas(elapsed) {
-  const active = data.ctas.filter((c) => c.show_at_seconds <= elapsed);
+  const active = data.ctas.filter((c) => c.show_at_seconds != null && c.show_at_seconds <= elapsed);
   if (active.length) renderCtaBar(active[active.length - 1]);
   for (const c of active) {
     if (c.post_in_chat && !shownCtaChat.has(c.id)) {
@@ -394,7 +452,7 @@ function renderBanners(elapsed) {
   const buckets = { top: [], side: [], below: [] };
 
   for (const b of data.banners) {
-    const visible = b.show_at_seconds <= elapsed && (b.hide_at_seconds == null || elapsed < b.hide_at_seconds);
+    const visible = b.show_at_seconds != null && b.show_at_seconds <= elapsed && (b.hide_at_seconds == null || elapsed < b.hide_at_seconds);
     if (!visible || !b.image_url) continue;
     const pos = (isMobile && b.position === "side") ? "below" : b.position;
     buckets[pos].push(b);
