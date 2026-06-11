@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Webnário · Disparo em Grupos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/css/styles.css" />
+  <link rel="stylesheet" href="dispatch.css" />
+  <script src="../config.js"></script>
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="row" style="gap:1rem;">
+      <a href="dashboard.html" class="btn btn--ghost btn--sm">← Voltar</a>
+      <div class="brand"><span class="dot"></span> Disparo em Grupos</div>
+    </div>
+    <div class="row">
+      <span class="pill" id="who"></span>
+      <button class="btn btn--ghost btn--sm" id="logout">Sair</button>
+    </div>
+  </header>
+
+  <!-- Barra de status do monitor -->
+  <div class="monitor-bar" id="monitor-bar">
+    <span class="monitor-dot"></span>
+    <span class="monitor-label" id="monitor-label">Monitor inativo — abra esta página para disparar automaticamente</span>
+    <button class="btn btn--sm" id="monitor-toggle">Iniciar monitoramento</button>
+    <button class="btn btn--sm btn--ghost" id="fire-now-btn" title="Verificar disparos agora (teste)">Verificar agora</button>
+  </div>
+
+  <main class="container stack" style="margin-top:1.5rem;">
+
+    <!-- Botão nova config -->
+    <div class="row spread wrap">
+      <div>
+        <h1 class="mb0">Configurações de disparo</h1>
+        <small class="muted">Envio automático de mensagens para grupos WhatsApp nos horários configurados.</small>
+      </div>
+      <button class="btn btn--primary" id="btn-new-dispatch">+ Nova configuração</button>
+    </div>
+
+    <!-- Formulário de criação/edição (oculto por padrão) -->
+    <div id="dispatch-form-wrap" class="hidden">
+      <h3 id="form-title">Nova configuração</h3>
+      <input type="hidden" id="edit-id" />
+
+      <div class="field-row">
+        <div class="field" style="max-width:320px;">
+          <label>Nome da configuração</label>
+          <input id="f-name" placeholder='ex: "Lembrete grupo segunda"' />
+        </div>
+        <div class="field" style="max-width:280px;">
+          <label>Webinário</label>
+          <select id="f-webinar">
+            <option value="">Selecione o webinário...</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Blocos por horário (renderizado dinamicamente) -->
+      <div id="schedule-fields" style="margin-top:.5rem;"></div>
+
+      <div class="row" style="gap:.6rem;margin-top:.8rem;">
+        <button class="btn btn--primary" id="f-save">Salvar configuração</button>
+        <button class="btn btn--ghost" id="f-cancel">Cancelar</button>
+      </div>
+    </div>
+
+    <!-- Lista de configurações -->
+    <div id="dispatch-list" class="stack">
+      <p class="muted">Carregando...</p>
+    </div>
+
+    <!-- Modal de histórico -->
+    <div id="log-modal" class="hidden" style="position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;">
+      <div style="position:absolute;inset:0;background:rgba(0,0,0,.6);" id="log-backdrop"></div>
+      <div class="card" style="position:relative;z-index:1;width:min(700px,95vw);max-height:80vh;overflow-y:auto;padding:1.2rem;">
+        <div class="row spread" style="margin-bottom:.8rem;">
+          <h3 class="mb0">Histórico de disparos</h3>
+          <button class="btn btn--sm btn--ghost" id="log-close">Fechar</button>
+        </div>
+        <div id="log-content"><p class="muted">Carregando...</p></div>
+      </div>
+    </div>
+
+  </main>
+
+  <script type="module" src="dispatch.js"></script>
+</body>
+</html>
