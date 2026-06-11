@@ -153,6 +153,50 @@
         </div>
         <div id="comments-list" class="sub-list"></div>
       </div>
+
+      <!-- Card de packs automáticos -->
+      <div class="card stack" id="pack-card" style="margin-top:1rem;">
+        <h3 class="mb0">📦 Inserir Pack de Comentários</h3>
+        <p class="muted mt0" style="font-size:.88rem;">Gera comentários com nomes brasileiros distribuídos automaticamente no período da live.</p>
+
+        <div id="pack-selector" class="pack-grid"></div>
+
+        <div class="field-row">
+          <div class="field" style="max-width:130px;">
+            <label>Quantidade</label>
+            <input type="number" id="pack-count" value="40" min="1" max="500" />
+          </div>
+          <div class="field" style="max-width:130px;">
+            <label>De (minuto)</label>
+            <input type="number" id="pack-start" value="5" min="0" />
+          </div>
+          <div class="field" style="max-width:130px;">
+            <label>Até (minuto)</label>
+            <input type="number" id="pack-end" value="55" min="1" />
+          </div>
+          <div class="field" style="max-width:180px;">
+            <label>Público</label>
+            <select id="pack-gender">
+              <option value="both">Ambos (homens e mulheres)</option>
+              <option value="female">Só mulheres</option>
+              <option value="male">Só homens</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row" style="gap:.6rem;">
+          <button class="btn btn--sm" id="pack-preview-btn">👁 Pré-visualizar</button>
+          <button class="btn btn--primary btn--sm" id="pack-apply-btn">✓ Aplicar pack</button>
+        </div>
+
+        <div id="pack-preview-box" class="hidden" style="margin-top:.5rem;">
+          <div class="row spread" style="margin-bottom:.4rem;">
+            <strong id="pack-preview-title" style="font-size:.9rem;"></strong>
+            <small class="muted" id="pack-preview-sub"></small>
+          </div>
+          <div id="pack-preview-list" class="pack-preview-list"></div>
+        </div>
+      </div>
     </section>
 
     <!-- ============ CTA ============ -->

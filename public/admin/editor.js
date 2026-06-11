@@ -4,6 +4,7 @@ import {
   fmtClock, parseClock, escapeHtml, toast,
   localInputToISO, isoToLocalInput,
 } from "../assets/js/util.js";
+import { PACKS, buildComments } from "../assets/js/comment-packs.js";
 
 const params = new URLSearchParams(location.search);
 const WID = params.get("id");
@@ -25,6 +26,7 @@ const $ = (id) => document.getElementById(id);
   $("copy-link").addEventListener("click", copyLink);
   $("video-file").addEventListener("change", onVideoFile);
   $("video-url").addEventListener("change", onVideoUrlChange);
+  setupPackInserter();
   $("add-comment").addEventListener("click", () => addChild("comments"));
   $("add-cta").addEventListener("click", () => addChild("ctas"));
   $("add-banner").addEventListener("click", () => addChild("banners"));
@@ -406,6 +408,61 @@ async function renderComments() {
     });
     host.appendChild(el);
   }
+}
+
+// ---------- Packs de comentários ----------
+function setupPackInserter() {
+  const grid = $("pack-selector");
+  for (const p of PACKS) {
+    const lbl = document.createElement("label");
+    lbl.className = "pack-chip";
+    lbl.innerHTML = `<input type="checkbox" value="${p.id}" /> ${p.icon} ${p.name}`;
+    grid.appendChild(lbl);
+  }
+  $("pack-preview-btn").addEventListener("click", previewPacks);
+  $("pack-apply-btn").addEventListener("click", applyPacks);
+}
+
+function getPackParams() {
+  const selectedIds = [...document.querySelectorAll("#pack-selector input:checked")].map(i => i.value);
+  const packs = PACKS.filter(p => selectedIds.includes(p.id));
+  const count = Math.max(1, parseInt($("pack-count").value) || 40);
+  const startSec = Math.max(0, parseInt($("pack-start").value) || 0) * 60;
+  const endSec = Math.max(startSec + 60, parseInt($("pack-end").value) || 55) * 60;
+  const gender = $("pack-gender").value;
+  return { packs, count, startSec, endSec, gender };
+}
+
+function previewPacks() {
+  const params = getPackParams();
+  if (!params.packs.length) return toast("Selecione ao menos um pack.", "error");
+  const comments = buildComments(params);
+  const preview = comments.slice(0, 12);
+  $("pack-preview-title").textContent = `Prévia — mostrando ${preview.length} de ${comments.length} comentários`;
+  $("pack-preview-sub").textContent = params.packs.map(p => p.icon + " " + p.name).join("  ·  ");
+  $("pack-preview-list").innerHTML = preview.map(c => `
+    <div class="pack-preview-row">
+      <span class="pack-preview-time">${fmtClock(c.show_at_seconds)}</span>
+      <span class="pack-preview-name">${escapeHtml(c.author_name)}</span>
+      <span>${escapeHtml(c.body)}</span>
+    </div>`).join("");
+  $("pack-preview-box").classList.remove("hidden");
+}
+
+async function applyPacks() {
+  const params = getPackParams();
+  if (!params.packs.length) return toast("Selecione ao menos um pack.", "error");
+  const rows = buildComments(params).map(c => ({ ...c, webinar_id: WID }));
+  const btn = $("pack-apply-btn");
+  btn.disabled = true;
+  btn.textContent = "Inserindo...";
+  const { error } = await supabase.from("comments").insert(rows);
+  btn.disabled = false;
+  btn.textContent = "✓ Aplicar pack";
+  if (error) return toast("Erro: " + error.message, "error");
+  toast(`${rows.length} comentários inseridos com sucesso!`, "success");
+  $("pack-preview-box").classList.add("hidden");
+  await renderComments();
 }
 
 // ---------- CTAs ----------
