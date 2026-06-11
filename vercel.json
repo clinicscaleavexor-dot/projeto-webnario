@@ -1,0 +1,9 @@
+{
+  "outputDirectory": "public",
+  "functions": {
+    "api/dispatch.js": {
+      "runtime": "nodejs18.x",
+      "maxDuration": 30
+    }
+  }
+}
