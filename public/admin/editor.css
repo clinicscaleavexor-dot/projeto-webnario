@@ -17,6 +17,10 @@
 .sub-item {
   background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1rem;
 }
+.batch-item {
+  border-left: 3px solid var(--accent);
+  background: rgba(124,92,255,.04);
+}
 .sub-item .field { margin-bottom: .7rem; }
 .sub-item .field-row { gap: .7rem; }
 .sub-item .row-head { display:flex; justify-content: space-between; align-items:center; margin-bottom:.6rem; }

@@ -366,7 +366,48 @@ async function renderComments() {
   if (!data || !data.length) { host.innerHTML = `<div class="empty">Nenhum comentário programado.</div>`; return; }
 
   host.innerHTML = "";
+
+  // Agrupa por batch_id (packs) vs comentários avulsos
+  const batches = {};
+  const manual = [];
   for (const c of data) {
+    if (c.batch_id) {
+      (batches[c.batch_id] = batches[c.batch_id] || []).push(c);
+    } else {
+      manual.push(c);
+    }
+  }
+
+  // Renderiza cards de pack (um card por lote)
+  for (const [batchId, items] of Object.entries(batches)) {
+    const first = items[0];
+    const last  = items[items.length - 1];
+    const el = document.createElement("div");
+    el.className = "sub-item batch-item";
+    el.innerHTML = `
+      <div class="row-head">
+        <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;">
+          <span class="tag">📦 Pack · ${items.length} comentários</span>
+          <span class="muted" style="font-size:.8rem;">${fmtClock(first.show_at_seconds)} → ${fmtClock(last.show_at_seconds)}</span>
+        </div>
+        <button class="btn btn--sm btn--danger" data-act="del-batch">Excluir pack</button>
+      </div>
+      <small class="muted" style="display:block;margin-top:.35rem;font-size:.82rem;">
+        Ex: <strong>${escapeHtml(first.author_name)}</strong> — "${escapeHtml(first.body)}"
+      </small>`;
+    el.querySelector('[data-act="del-batch"]').addEventListener("click", async () => {
+      if (!confirm(`Excluir os ${items.length} comentários deste pack?`)) return;
+      const { error } = await supabase.from("comments").delete()
+        .eq("webinar_id", WID).eq("batch_id", batchId);
+      if (error) return toast("Erro: " + error.message, "error");
+      toast(`${items.length} comentários excluídos.`, "success");
+      await renderComments();
+    });
+    host.appendChild(el);
+  }
+
+  // Renderiza comentários avulsos (adicionados manualmente)
+  for (const c of manual) {
     const el = document.createElement("div");
     el.className = "sub-item";
     el.innerHTML = `
@@ -461,7 +502,8 @@ function previewPacks() {
 async function applyPacks() {
   const params = getPackParams();
   if (!params.packs.length) return toast("Selecione ao menos um pack.", "error");
-  const rows = buildComments(params).map(c => ({ ...c, webinar_id: WID }));
+  const batchId = crypto.randomUUID();
+  const rows = buildComments(params).map(c => ({ ...c, webinar_id: WID, batch_id: batchId }));
   const btn = $("pack-apply-btn");
   btn.disabled = true;
   btn.textContent = "Inserindo...";
