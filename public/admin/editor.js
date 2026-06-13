@@ -476,9 +476,9 @@ function setupPackInserter() {
 function getPackParams() {
   const selectedIds = [...document.querySelectorAll("#pack-selector input:checked")].map(i => i.value);
   const packs = PACKS.filter(p => selectedIds.includes(p.id));
-  const count = Math.max(1, parseInt($("pack-count").value) || 40);
+  const count    = Math.max(1, parseInt($("pack-count").value) || 40);
   const startSec = Math.max(0, parseInt($("pack-start").value) || 0) * 60;
-  const endSec = Math.max(startSec + 60, parseInt($("pack-end").value) || 55) * 60;
+  const endSec   = Math.max(startSec + 60, (parseInt($("pack-end").value) || 55) * 60);
   const gender = $("pack-gender").value;
   return { packs, count, startSec, endSec, gender };
 }
