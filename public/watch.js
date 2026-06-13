@@ -90,6 +90,7 @@ async function init() {
 
   renderBanners(0);
   if (isAdmin) { setupAdminChat(); setupAdminScrubber(); }
+  else setupViewerChat();
   subscribeToLiveComments();
 
   tick();
@@ -320,6 +321,45 @@ function scrollChat() {
   host.scrollTop = host.scrollHeight;
 }
 
+// ---------- Chat ao vivo dos espectadores ----------
+function setupViewerChat() {
+  const STORAGE_KEY = "webnario_viewer_name";
+  let viewerName = localStorage.getItem(STORAGE_KEY) || "";
+
+  const nameWrap = $("viewer-name-wrap");
+  const nameInp  = $("viewer-name-inp");
+  const msgInp   = $("viewer-msg-inp");
+  const sendBtn  = $("viewer-send");
+
+  if (!viewerName) nameWrap.classList.remove("hidden");
+
+  const send = async () => {
+    if (!viewerName) {
+      viewerName = nameInp.value.trim();
+      if (!viewerName) { nameInp.focus(); return; }
+      localStorage.setItem(STORAGE_KEY, viewerName);
+      nameWrap.classList.add("hidden");
+    }
+    const body = msgInp.value.trim();
+    if (!body) return;
+    sendBtn.disabled = true;
+    await supabase.from("live_comments").insert({
+      webinar_id: webinarId,
+      schedule_id: webinar.schedule_id || null,
+      author_name: viewerName,
+      body,
+    });
+    sendBtn.disabled = false;
+    msgInp.value = "";
+    msgInp.focus();
+  };
+
+  sendBtn.addEventListener("click", send);
+  msgInp.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+  });
+}
+
 // ---------- Chat ao vivo do admin ----------
 function setupAdminChat() {
   $("chat-input-fake").classList.add("hidden");
@@ -408,8 +448,9 @@ function subscribeToLiveComments() {
       event: "INSERT", schema: "public", table: "live_comments",
       filter: `webinar_id=eq.${webinarId}`,
     }, (payload) => {
+      const isAdminMsg = payload.new.author_name === "ADM";
       $("chat-messages").appendChild(
-        buildMessage({ name: payload.new.author_name, body: payload.new.body, admin: true })
+        buildMessage({ name: payload.new.author_name, body: payload.new.body, admin: isAdminMsg })
       );
       scrollChat();
     })

@@ -72,7 +72,7 @@
 .banner-slot a { display: block; }
 .banner-slot img {
   width: 100%;
-  max-height: 120px;   /* altura máxima — ajuste aqui se quiser maior ou menor */
+  max-height: 160px;
   object-fit: cover;
   object-position: center;
   border-radius: var(--radius);
@@ -102,10 +102,14 @@
 .admin-tag { font-size: .62rem; font-weight: 800; background: var(--accent); color: #fff; padding: .1em .45em; border-radius: 4px; margin-left: .35em; vertical-align: middle; }
 .chat-msg--cta .msg-body { color: var(--accent-hover); font-weight: 600; }
 
-.chat-input-fake {
-  display: flex; gap: .5rem; padding: .7rem; border-top: 1px solid var(--border);
+.chat-input-viewer {
+  padding: .7rem;
+  border-top: 1px solid var(--border);
 }
-.chat-input-fake input { padding: .55em .8em; }
+.chat-input-viewer .row { gap: .4rem; }
+.chat-input-viewer #viewer-msg-inp { flex: 1; padding: .55em .8em; }
+.viewer-name-wrap { margin-bottom: .5rem; }
+.viewer-name-wrap input { width: 100%; padding: .45em .7em; margin-bottom: .2rem; }
 
 .chat-input-real {
   display: flex; gap: .5rem; padding: .7rem; border-top: 2px solid var(--accent);
@@ -136,4 +140,5 @@
   .watch-grid { grid-template-columns: 1fr; }
   .chat { max-height: 60vh; min-height: 340px; }
   .banner-slot--side { display: none; } /* lateral vira "abaixo" no mobile via JS fallback */
+  .banner-slot img { max-height: 240px; }
 }
