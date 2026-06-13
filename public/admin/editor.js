@@ -386,9 +386,9 @@ async function renderComments() {
           <label>Nome de quem comenta</label>
           <input data-f="author_name" value="${escapeHtml(c.author_name)}" />
         </div>
-        <div class="field" style="max-width:140px;">
-          <label>Aparece em (min:seg)</label>
-          <input data-f="show_at_seconds" value="${fmtClock(c.show_at_seconds)}" />
+        <div class="field" style="max-width:160px;">
+          <label>Aparece em <small class="muted" style="font-weight:400;">(MM:SS ou H:MM:SS)</small></label>
+          <input data-f="show_at_seconds" value="${fmtClock(c.show_at_seconds)}" placeholder="ex: 1:30:00" />
         </div>
       </div>
       <div class="field">
@@ -419,6 +419,15 @@ function setupPackInserter() {
     lbl.innerHTML = `<input type="checkbox" value="${p.id}" /> ${p.icon} ${p.name}`;
     grid.appendChild(lbl);
   }
+
+  // Auto-preenche "Até" com a duração total do vídeo (em minutos)
+  if (webinar?.video_duration_seconds) {
+    const totalMin = Math.floor(webinar.video_duration_seconds / 60);
+    $("pack-end").value = totalMin;
+    const hint = $("pack-end-hint");
+    if (hint) hint.textContent = `(máx ${fmtClock(webinar.video_duration_seconds)})`;
+  }
+
   $("pack-preview-btn").addEventListener("click", previewPacks);
   $("pack-apply-btn").addEventListener("click", applyPacks);
 }
