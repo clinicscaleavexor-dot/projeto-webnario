@@ -971,7 +971,10 @@ function exportLeadsCsv() {
 async function sendLeadReminder(lead, btn) {
   const digits = lead.phone.replace(/\D/g, "");
   const to = (digits.startsWith("55") ? digits : "55" + digits) + "@c.us";
-  const liveUrl = publicUrl(webinar.slug);
+  const baseUrl = publicUrl(webinar.slug);
+  const liveUrl = lead.schedule_id
+    ? baseUrl + "&s=" + encodeURIComponent(lead.schedule_id)
+    : baseUrl + "&start=" + new Date(lead.scheduled_for).getTime();
   const text =
     `🌸 Oi, tudo bem?\n\n` +
     `Passando para te lembrar que a aula do *Projeto Topos Lucrativos* já vai começar! 💖\n\n` +
