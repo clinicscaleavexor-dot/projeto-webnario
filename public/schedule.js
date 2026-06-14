@@ -70,7 +70,7 @@ function renderSpecialSlots() {
   thirtyCard.className = "slot-card slot-card--soon";
   thirtyCard.innerHTML = `
     <div class="slot-soon-badge">Em breve</div>
-    <div class="slot-day">Próxima turma</div>
+    <div class="slot-day">HOJE</div>
     <div class="slot-time">${thirtyTime}</div>
     <div class="slot-label">Em 30 minutos</div>
   `;
