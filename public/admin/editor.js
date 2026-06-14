@@ -40,6 +40,12 @@ const $ = (id) => document.getElementById(id);
   $("leads-refresh").addEventListener("click", () => loadLeads());
   $("leads-filter").addEventListener("change", () => loadLeads());
   $("leads-export").addEventListener("click", exportLeadsCsv);
+  $("leads-list").addEventListener("click", (e) => {
+    const btn = e.target.closest(".lead-remind-btn");
+    if (!btn) return;
+    const lead = leadsCache.find((l) => l.id === btn.dataset.id);
+    if (lead) sendLeadReminder(lead, btn);
+  });
 })();
 
 // ---------- Tabs ----------
@@ -861,6 +867,7 @@ async function regenerateGroup(groupId, template) {
 //  LEADS
 // =====================================================================
 let allSchedules = [];
+let leadsCache = [];
 
 async function populateLeadsFilter() {
   const { data } = await supabase
@@ -908,6 +915,8 @@ async function loadLeads() {
   if (error) { host.innerHTML = `<div class="empty">Erro: ${escapeHtml(error.message)}</div>`; return; }
   if (!data || !data.length) { host.innerHTML = `<div class="empty">Nenhum lead capturado ainda.</div>`; return; }
 
+  leadsCache = data;
+
   host.innerHTML = `
     <div class="leads-summary muted" style="font-size:.85rem;margin-bottom:.6rem;">${data.length} lead${data.length !== 1 ? "s" : ""}</div>
     <div class="leads-table-wrap">
@@ -919,6 +928,7 @@ async function loadLeads() {
             <th>Horário agendado</th>
             <th>Tipo</th>
             <th>Cadastro</th>
+            <th>Ações</th>
           </tr>
         </thead>
         <tbody id="leads-tbody"></tbody>
@@ -935,6 +945,7 @@ async function loadLeads() {
       <td>${new Date(lead.scheduled_for).toLocaleString("pt-BR")}</td>
       <td><span class="tag tag--${lead.schedule_type}">${typeLabel}</span></td>
       <td class="muted">${new Date(lead.created_at).toLocaleString("pt-BR")}</td>
+      <td><button class="btn btn--sm btn--ghost lead-remind-btn" data-id="${lead.id}">📱 Lembrete</button></td>
     `;
     tbody.appendChild(tr);
   }
@@ -946,7 +957,7 @@ function exportLeadsCsv() {
 
   const lines = ["Nome,Telefone,Horário Agendado,Tipo,Data de Cadastro"];
   rows.forEach((tr) => {
-    const cells = [...tr.querySelectorAll("td")].map((td) => `"${td.textContent.trim().replace(/"/g, '""')}"`);
+    const cells = [...tr.querySelectorAll("td")].slice(0, 5).map((td) => `"${td.textContent.trim().replace(/"/g, '""')}"`);
     lines.push(cells.join(","));
   });
 
@@ -955,4 +966,35 @@ function exportLeadsCsv() {
   a.href = URL.createObjectURL(blob);
   a.download = `leads-${WID.slice(0, 8)}.csv`;
   a.click();
+}
+
+async function sendLeadReminder(lead, btn) {
+  const digits = lead.phone.replace(/\D/g, "");
+  const to = (digits.startsWith("55") ? digits : "55" + digits) + "@c.us";
+  const liveUrl = publicUrl(webinar.slug);
+  const text =
+    `🌸 Oi, tudo bem?\n\n` +
+    `Passando para te lembrar que a aula do *Projeto Topos Lucrativos* já vai começar! 💖\n\n` +
+    `Nessa aula, você vai descobrir como transformar sua criatividade em uma fonte de renda, mesmo que esteja começando do zero.\n\n` +
+    `Clique no link abaixo para assistir:\n\n` +
+    `👉 ${liveUrl}\n\n` +
+    `Estou te esperando para dar o primeiro passo rumo à sua transformação! ✨`;
+
+  const MEGA_URL = "https://apinocode01.megaapi.com.br/rest/sendMessage/megacode-M6hpeUt7tF1/text";
+  const MEGA_TOKEN = "M6hpeUt7tF1";
+
+  if (btn) { btn.disabled = true; btn.textContent = "Enviando..."; }
+  try {
+    const res = await fetch(MEGA_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${MEGA_TOKEN}` },
+      body: JSON.stringify({ messageData: { to, text } }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    toast(`Lembrete enviado para ${lead.name}!`, "success");
+  } catch (e) {
+    toast(`Erro ao enviar: ${e.message}`, "error");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "📱 Lembrete"; }
+  }
 }
