@@ -232,10 +232,11 @@ async function submitLead() {
     return;
   }
 
-  closeLeadModal();
-
   const scheduledTime = new Date(pendingSlot.scheduled_for_ms).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   const url = watchUrl(webinarData.slug, pendingSlot.watchParams);
+
+  closeLeadModal();
+
   showConfirm({
     heading: "Vaga confirmada! 🎉",
     label: `Obrigado, ${name}! 5 minutos antes da sua aula às ${scheduledTime} iremos te mandar o link nesse mesmo número que você preencheu: ${phone}.`,
