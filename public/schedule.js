@@ -256,7 +256,6 @@ function showConfirm({ heading, label, url }) {
   $("confirm-box").classList.remove("hidden");
   $("confirm-heading").textContent = heading || "Horário confirmado!";
   $("confirm-label").textContent = label;
-  $("confirm-watch").href = url;
 
   $("copy-confirm").onclick = async () => {
     try { await navigator.clipboard.writeText(url); $("copy-confirm").textContent = "Copiado!"; }
