@@ -58,7 +58,14 @@ function renderSpecialSlots() {
     <div class="slot-label">Comece imediatamente</div>
   `;
   nowCard.addEventListener("click", () => {
-    window.location.href = watchUrl(webinarData.slug, { mode: "now" });
+    pendingSlot = {
+      type: "now",
+      scheduled_for_ms: serverNowMs,
+      label: "agora",
+      watchParams: { mode: "now" },
+      redirect: true,
+    };
+    openLeadModal("Você vai assistir agora! Preencha seus dados para entrar na aula.");
   });
   host.appendChild(nowCard);
 
@@ -234,14 +241,19 @@ async function submitLead() {
 
   const scheduledTime = new Date(pendingSlot.scheduled_for_ms).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   const url = watchUrl(webinarData.slug, pendingSlot.watchParams);
+  const shouldRedirect = pendingSlot.redirect;
 
   closeLeadModal();
 
-  showConfirm({
-    heading: "Vaga confirmada! 🎉",
-    label: `Obrigado, ${name}! 5 minutos antes da sua aula às ${scheduledTime} iremos te mandar o link nesse mesmo número que você preencheu: ${phone}.`,
-    url,
-  });
+  if (shouldRedirect) {
+    window.location.href = url;
+  } else {
+    showConfirm({
+      heading: "Vaga confirmada! 🎉",
+      label: `Obrigado, ${name}! 5 minutos antes da sua aula às ${scheduledTime} iremos te mandar o link nesse mesmo número que você preencheu: ${phone}.`,
+      url,
+    });
+  }
 }
 
 function showLeadError(msg) {
