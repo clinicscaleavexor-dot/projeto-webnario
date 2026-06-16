@@ -67,8 +67,15 @@ async function processLeads({ supabase, leads, type, msgBuilder, results }) {
   }
 }
 
+function isAuthorized(req) {
+  const { DISPATCH_SECRET, CRON_SECRET } = process.env;
+  if (CRON_SECRET && req.headers["authorization"] === `Bearer ${CRON_SECRET}`) return true;
+  if (DISPATCH_SECRET && req.headers["x-dispatch-secret"] === DISPATCH_SECRET) return true;
+  return false;
+}
+
 module.exports = async function handler(req, res) {
-  if (req.headers["x-dispatch-secret"] !== process.env.DISPATCH_SECRET) {
+  if (!isAuthorized(req)) {
     return res.status(401).json({ error: "unauthorized" });
   }
 

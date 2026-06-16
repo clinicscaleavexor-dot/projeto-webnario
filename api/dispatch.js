@@ -37,10 +37,15 @@ async function sbPost(path, body) {
   return res.ok;
 }
 
-module.exports = async function handler(req, res) {
-  const { DISPATCH_SECRET } = process.env;
+function isAuthorized(req) {
+  const { DISPATCH_SECRET, CRON_SECRET } = process.env;
+  if (CRON_SECRET && req.headers["authorization"] === `Bearer ${CRON_SECRET}`) return true;
+  if (DISPATCH_SECRET && req.headers["x-dispatch-secret"] === DISPATCH_SECRET) return true;
+  return false;
+}
 
-  if (!DISPATCH_SECRET || req.headers["x-dispatch-secret"] !== DISPATCH_SECRET) {
+module.exports = async function handler(req, res) {
+  if (!isAuthorized(req)) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
