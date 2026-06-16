@@ -540,7 +540,9 @@ function updatePresence() {
   supabase.from("live_presence").upsert(
     { webinar_id: webinarId, session_id: SESSION_ID, last_seen: new Date().toISOString() },
     { onConflict: "webinar_id,session_id" }
-  ).then();
+  ).then(({ error }) => {
+    if (error) console.warn("[presence] upsert falhou:", error.message);
+  });
 }
 
 // ---------- Rastreamento ----------
