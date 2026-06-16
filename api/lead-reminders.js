@@ -1,20 +1,44 @@
-const { createClient } = require("@supabase/supabase-js");
+// Disparo automático de lembretes pré-aula e follow-up pós-aula via Mega API.
+// Chamado pelo pg_cron do Supabase a cada minuto.
+// Usa fetch puro (igual ao dispatch.js) para evitar problemas de URL com o SDK.
 
 const MEGA_URL   = "https://apinocode01.megaapi.com.br/rest/sendMessage/megacode-M6hpeUt7tF1/text";
 const MEGA_TOKEN = "M6hpeUt7tF1";
-
 const BATCH_SIZE = 8;
 const DELAY_MS   = 700;
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-function buildWatchUrl(slug, lead) {
-  const base = (process.env.SITE_URL || "").replace(/\/$/, "");
-  const param = lead.schedule_id
-    ? `s=${encodeURIComponent(lead.schedule_id)}`
-    : `start=${new Date(lead.scheduled_for).getTime()}`;
-  return `${base}/watch.html?w=${encodeURIComponent(slug)}&${param}`;
+// ---------- Supabase REST helpers (mesmo padrão do dispatch.js) ----------
+
+function sbHeaders() {
+  const key = process.env.SUPABASE_SERVICE_KEY;
+  return {
+    apikey: key,
+    Authorization: `Bearer ${key}`,
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  };
 }
+
+async function sbGet(path) {
+  const url = `${process.env.SUPABASE_URL}/rest/v1/${path}`;
+  const res = await fetch(url, { headers: sbHeaders() });
+  if (!res.ok) throw new Error(`GET ${path}: ${res.status} ${await res.text()}`);
+  return res.json();
+}
+
+async function sbPost(path, body) {
+  const url = `${process.env.SUPABASE_URL}/rest/v1/${path}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { ...sbHeaders(), Prefer: "return=minimal" },
+    body: JSON.stringify(body),
+  });
+  return res.ok;
+}
+
+// ---------- Mega API ----------
 
 async function sendWhatsApp(phone, text) {
   const digits = phone.replace(/\D/g, "");
@@ -31,7 +55,19 @@ async function sendWhatsApp(phone, text) {
   }
 }
 
-async function processLeads({ supabase, leads, type, slugMap, msgBuilder, results, log }) {
+// ---------- URL da aula ----------
+
+function buildWatchUrl(slug, lead) {
+  const base = (process.env.SITE_URL || "").replace(/\/$/, "");
+  const param = lead.schedule_id
+    ? `s=${encodeURIComponent(lead.schedule_id)}`
+    : `start=${new Date(lead.scheduled_for).getTime()}`;
+  return `${base}/watch.html?w=${encodeURIComponent(slug)}&${param}`;
+}
+
+// ---------- Processamento ----------
+
+async function processLeads({ leads, type, slugMap, msgBuilder, results, log }) {
   let sent = 0;
 
   for (const lead of leads) {
@@ -39,26 +75,25 @@ async function processLeads({ supabase, leads, type, slugMap, msgBuilder, result
 
     const slug = slugMap[lead.webinar_id];
     if (!slug) {
-      log.push({ id: lead.id, name: lead.name, type, skipped: "sem_slug", webinar_id: lead.webinar_id });
+      log.push({ name: lead.name, type, skip: "sem_slug" });
       results.skipped++;
       continue;
     }
 
-    // Deduplicação — pula se já foi enviado
-    const { data: already, error: dupErr } = await supabase
-      .from("lead_reminder_log")
-      .select("lead_id")
-      .eq("lead_id", lead.id)
-      .eq("type", type)
-      .maybeSingle();
-
-    if (dupErr) {
-      log.push({ id: lead.id, name: lead.name, type, skipped: "dup_check_error", error: dupErr.message });
+    // Deduplicação
+    let already = false;
+    try {
+      const rows = await sbGet(
+        `lead_reminder_log?lead_id=eq.${lead.id}&type=eq.${type}&limit=1`
+      );
+      already = rows.length > 0;
+    } catch (e) {
+      log.push({ name: lead.name, type, skip: "dup_error", error: e.message });
       results.errors++;
       continue;
     }
     if (already) {
-      log.push({ id: lead.id, name: lead.name, type, skipped: "ja_enviado" });
+      log.push({ name: lead.name, type, skip: "ja_enviado" });
       continue;
     }
 
@@ -67,24 +102,25 @@ async function processLeads({ supabase, leads, type, slugMap, msgBuilder, result
     const { ok, status, error: sendErr } = await sendWhatsApp(lead.phone, text);
 
     if (ok) {
-      const { error: logErr } = await supabase
-        .from("lead_reminder_log")
-        .insert({ lead_id: lead.id, type });
-      if (logErr) {
-        log.push({ id: lead.id, name: lead.name, type, skipped: "log_insert_error", error: logErr.message });
-      } else {
-        log.push({ id: lead.id, name: lead.name, type, sent: true, url });
+      const logged = await sbPost("lead_reminder_log", { lead_id: lead.id, type });
+      if (logged) {
+        log.push({ name: lead.name, type, sent: true });
         results[type]++;
         sent++;
+      } else {
+        log.push({ name: lead.name, type, skip: "log_insert_falhou" });
+        results.errors++;
       }
     } else {
-      log.push({ id: lead.id, name: lead.name, type, skipped: "mega_error", status, error: sendErr });
+      log.push({ name: lead.name, type, skip: "mega_error", status, error: sendErr });
       results.errors++;
     }
 
     await sleep(DELAY_MS);
   }
 }
+
+// ---------- Auth ----------
 
 function isAuthorized(req) {
   const { DISPATCH_SECRET, CRON_SECRET } = process.env;
@@ -93,68 +129,65 @@ function isAuthorized(req) {
   return false;
 }
 
+// ---------- Handler ----------
+
 module.exports = async function handler(req, res) {
   if (!isAuthorized(req)) {
     return res.status(401).json({ error: "unauthorized" });
   }
 
-  const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY
-  );
-
   const nowMs  = Date.now();
   const results = { pre: 0, pos: 0, errors: 0, skipped: 0 };
   const log     = [];
 
-  // Janela PRÉ-AULA: entre 15 e 20 minutos antes do início
   const preMin = new Date(nowMs + 15 * 60 * 1000).toISOString();
   const preMax = new Date(nowMs + 20 * 60 * 1000).toISOString();
-
-  // Janela PÓS-AULA: entre 75 e 80 minutos após o início
   const posMin = new Date(nowMs - 80 * 60 * 1000).toISOString();
   const posMax = new Date(nowMs - 75 * 60 * 1000).toISOString();
 
-  // Busca leads nas janelas — SEM join para evitar falha silenciosa
-  const [preResult, posResult] = await Promise.all([
-    supabase
-      .from("schedule_leads")
-      .select("id, name, phone, scheduled_for, schedule_id, webinar_id")
-      .gte("scheduled_for", preMin)
-      .lte("scheduled_for", preMax)
-      .limit(50),
-    supabase
-      .from("schedule_leads")
-      .select("id, name, phone, scheduled_for, schedule_id, webinar_id")
-      .gte("scheduled_for", posMin)
-      .lte("scheduled_for", posMax)
-      .limit(50),
-  ]);
+  // Busca leads nas janelas
+  let preLeads = [], posLeads = [];
+  try {
+    preLeads = await sbGet(
+      `schedule_leads?select=id,name,phone,scheduled_for,schedule_id,webinar_id` +
+      `&scheduled_for=gte.${encodeURIComponent(preMin)}` +
+      `&scheduled_for=lte.${encodeURIComponent(preMax)}` +
+      `&limit=50`
+    );
+  } catch (e) {
+    log.push({ step: "query_pre", error: e.message });
+  }
 
-  if (preResult.error) log.push({ step: "query_pre", error: preResult.error.message });
-  if (posResult.error) log.push({ step: "query_pos", error: posResult.error.message });
+  try {
+    posLeads = await sbGet(
+      `schedule_leads?select=id,name,phone,scheduled_for,schedule_id,webinar_id` +
+      `&scheduled_for=gte.${encodeURIComponent(posMin)}` +
+      `&scheduled_for=lte.${encodeURIComponent(posMax)}` +
+      `&limit=50`
+    );
+  } catch (e) {
+    log.push({ step: "query_pos", error: e.message });
+  }
 
-  const preLeads = preResult.data || [];
-  const posLeads = posResult.data || [];
-
-  // Busca slugs dos webinários envolvidos em uma query separada
+  // Busca slugs dos webinários envolvidos
   const slugMap = {};
   const webinarIds = [...new Set(
     [...preLeads, ...posLeads].map(l => l.webinar_id).filter(Boolean)
   )];
-
   if (webinarIds.length) {
-    const { data: webinars, error: wErr } = await supabase
-      .from("webinars")
-      .select("id, slug")
-      .in("id", webinarIds);
-    if (wErr) log.push({ step: "query_webinars", error: wErr.message });
-    for (const w of (webinars || [])) slugMap[w.id] = w.slug;
+    try {
+      const webinars = await sbGet(
+        `webinars?select=id,slug&id=in.(${webinarIds.join(",")})`
+      );
+      for (const w of webinars) slugMap[w.id] = w.slug;
+    } catch (e) {
+      log.push({ step: "query_webinars", error: e.message });
+    }
   }
 
   // Lembrete pré-aula
   await processLeads({
-    supabase, leads: preLeads, type: "pre", slugMap, results, log,
+    leads: preLeads, type: "pre", slugMap, results, log,
     msgBuilder: (lead, url) =>
       `🌸 Oi, ${lead.name}! Tudo bem?\n\n` +
       `Sua aula do *Projeto Topos Lucrativos* começa em breve! 💖\n\n` +
@@ -165,7 +198,7 @@ module.exports = async function handler(req, res) {
 
   // Follow-up pós-aula
   await processLeads({
-    supabase, leads: posLeads, type: "pos", slugMap, results, log,
+    leads: posLeads, type: "pos", slugMap, results, log,
     msgBuilder: (lead) =>
       `🌸 Oi, ${lead.name}! Tudo bem?\n\n` +
       `Queria saber se você conseguiu assistir à nossa aula do *Projeto Topos Lucrativos* hoje! 💖\n\n` +
