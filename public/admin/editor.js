@@ -41,6 +41,15 @@ const $ = (id) => document.getElementById(id);
   $("leads-filter").addEventListener("change", () => loadLeads());
   $("leads-export").addEventListener("click", exportLeadsCsv);
   $("leads-list").addEventListener("click", (e) => {
+    const phoneEl = e.target.closest(".lead-phone-copy");
+    if (phoneEl) {
+      navigator.clipboard.writeText(phoneEl.dataset.phone).then(() => {
+        const orig = phoneEl.textContent;
+        phoneEl.textContent = "Copiado!";
+        setTimeout(() => phoneEl.textContent = orig, 1500);
+      });
+      return;
+    }
     const btn = e.target.closest(".lead-remind-btn");
     if (!btn) return;
     const lead = leadsCache.find((l) => l.id === btn.dataset.id);
@@ -941,7 +950,7 @@ async function loadLeads() {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${escapeHtml(lead.name)}</td>
-      <td><a href="https://wa.me/${lead.phone.replace(/\D/g, "")}" target="_blank" rel="noopener">${escapeHtml(lead.phone)}</a></td>
+      <td><span class="lead-phone-copy" data-phone="${escapeHtml(lead.phone)}" title="Clique para copiar">${escapeHtml(lead.phone)}</span></td>
       <td>${new Date(lead.scheduled_for).toLocaleString("pt-BR")}</td>
       <td><span class="tag tag--${lead.schedule_type}">${typeLabel}</span></td>
       <td class="muted">${new Date(lead.created_at).toLocaleString("pt-BR")}</td>

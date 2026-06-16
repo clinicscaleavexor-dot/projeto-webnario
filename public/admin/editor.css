@@ -66,6 +66,9 @@
 .pack-preview-time { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
 .pack-preview-name { color: var(--text-dim); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+.lead-phone-copy { cursor: pointer; color: var(--green); text-decoration: underline dotted; }
+.lead-phone-copy:hover { text-decoration: underline; }
+
 /* Tabela de leads */
 .leads-table-wrap { overflow-x: auto; }
 .leads-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
