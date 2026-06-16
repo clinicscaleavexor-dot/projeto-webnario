@@ -39,6 +39,7 @@ const $ = (id) => document.getElementById(id);
   });
   $("leads-refresh").addEventListener("click", () => loadLeads());
   $("leads-filter").addEventListener("change", () => loadLeads());
+  $("leads-reminder-filter").addEventListener("change", () => loadLeads());
   $("leads-export").addEventListener("click", exportLeadsCsv);
   $("leads-list").addEventListener("click", (e) => {
     const phoneEl = e.target.closest(".lead-phone-copy");
@@ -50,10 +51,17 @@ const $ = (id) => document.getElementById(id);
       });
       return;
     }
-    const btn = e.target.closest(".lead-remind-btn");
-    if (!btn) return;
-    const lead = leadsCache.find((l) => l.id === btn.dataset.id);
-    if (lead) sendLeadReminder(lead, btn);
+    const remindBtn = e.target.closest(".lead-remind-btn");
+    if (remindBtn) {
+      const lead = leadsCache.find((l) => l.id === remindBtn.dataset.id);
+      if (lead) sendLeadReminder(lead, remindBtn);
+      return;
+    }
+    const delBtn = e.target.closest(".lead-delete-btn");
+    if (delBtn) {
+      const lead = leadsCache.find((l) => l.id === delBtn.dataset.id);
+      if (lead) deleteLead(lead.id, delBtn);
+    }
   });
 })();
 
@@ -887,20 +895,24 @@ async function populateLeadsFilter() {
 
   allSchedules = data || [];
   const sel = $("leads-filter");
-  // Mantém a opção "Todos" e adiciona fixas + horários reais
   sel.innerHTML = `
     <option value="all">Todos os horários</option>
     <option value="now">Assistiu Agora</option>
-    <option value="relative_30">Em 30 minutos</option>
+    <option value="relative_30">Daqui 30 minutos</option>
   `;
+
+  // Agrupa schedules por hora do dia no Brasil (UTC-3), ex: "15:00", "20:00"
+  const timeGroups = {};
   for (const s of allSchedules) {
-    const d = new Date(s.start_at);
-    const label = s.label
-      ? `${s.label} — ${d.toLocaleString("pt-BR")}`
-      : d.toLocaleString("pt-BR");
+    const brtDate = new Date(new Date(s.start_at).getTime() - 3 * 60 * 60 * 1000);
+    const hhmm = brtDate.toISOString().slice(11, 16); // "15:00"
+    if (!timeGroups[hhmm]) timeGroups[hhmm] = [];
+    timeGroups[hhmm].push(s.id);
+  }
+  for (const hhmm of Object.keys(timeGroups).sort()) {
     const opt = document.createElement("option");
-    opt.value = s.id;
-    opt.textContent = label;
+    opt.value = `time:${hhmm}:${timeGroups[hhmm].join(",")}`;
+    opt.textContent = `${hhmm.replace(":", "h")} horas`;
     sel.appendChild(opt);
   }
 }
@@ -918,7 +930,10 @@ async function loadLeads() {
 
   if (filter === "now") query = query.eq("schedule_type", "now");
   else if (filter === "relative_30") query = query.eq("schedule_type", "relative_30");
-  else if (filter !== "all") query = query.eq("schedule_id", filter);
+  else if (filter.startsWith("time:")) {
+    const ids = filter.split(":")[2].split(",");
+    query = query.in("schedule_id", ids);
+  } else if (filter !== "all") query = query.eq("schedule_id", filter);
 
   const { data, error } = await query;
   if (error) { host.innerHTML = `<div class="empty">Erro: ${escapeHtml(error.message)}</div>`; return; }
@@ -940,9 +955,19 @@ async function loadLeads() {
   const preTotal = Object.values(remMap).filter(m => m.pre).length;
   const posTotal = Object.values(remMap).filter(m => m.pos).length;
 
+  // Aplica filtro de lembrete client-side
+  const reminderFilter = $("leads-reminder-filter").value;
+  let displayData = data;
+  if (reminderFilter === "pre_sent")    displayData = data.filter(l => remMap[l.id]?.pre);
+  else if (reminderFilter === "pre_pending")  displayData = data.filter(l => !remMap[l.id]?.pre);
+  else if (reminderFilter === "pos_sent")    displayData = data.filter(l => remMap[l.id]?.pos);
+  else if (reminderFilter === "pos_pending") displayData = data.filter(l => !remMap[l.id]?.pos);
+
+  const showing = displayData.length !== data.length ? ` (mostrando ${displayData.length})` : "";
+
   host.innerHTML = `
     <div class="leads-summary muted" style="font-size:.85rem;margin-bottom:.6rem;">
-      ${data.length} lead${data.length !== 1 ? "s" : ""}
+      ${data.length} lead${data.length !== 1 ? "s" : ""}${showing}
       &nbsp;·&nbsp; 💬 ${preTotal} lembrete${preTotal !== 1 ? "s" : ""} enviado${preTotal !== 1 ? "s" : ""}
       &nbsp;·&nbsp; ✅ ${posTotal} follow-up${posTotal !== 1 ? "s" : ""} enviado${posTotal !== 1 ? "s" : ""}
     </div>
@@ -965,7 +990,7 @@ async function loadLeads() {
     </div>`;
 
   const tbody = $("leads-tbody");
-  for (const lead of data) {
+  for (const lead of displayData) {
     const typeLabel = { now: "Agora", relative_30: "30 min", scheduled: "Agendado" }[lead.schedule_type] || lead.schedule_type;
     const hasPre = remMap[lead.id]?.pre;
     const hasPos = remMap[lead.id]?.pos;
@@ -978,7 +1003,12 @@ async function loadLeads() {
       <td class="muted">${new Date(lead.created_at).toLocaleString("pt-BR")}</td>
       <td style="text-align:center;">${hasPre ? '<span title="Lembrete enviado automaticamente">✅</span>' : '<span class="muted" title="Ainda não enviado">—</span>'}</td>
       <td style="text-align:center;">${hasPos ? '<span title="Follow-up enviado automaticamente">✅</span>' : '<span class="muted" title="Ainda não enviado">—</span>'}</td>
-      <td><button class="btn btn--sm btn--ghost lead-remind-btn" data-id="${lead.id}">📱 Lembrete</button></td>
+      <td>
+        <div class="row" style="gap:.4rem;flex-wrap:nowrap;">
+          <button class="btn btn--sm btn--ghost lead-remind-btn" data-id="${lead.id}" title="Enviar lembrete manual">📱</button>
+          <button class="btn btn--sm btn--danger lead-delete-btn" data-id="${lead.id}" title="Remover lead">×</button>
+        </div>
+      </td>
     `;
     tbody.appendChild(tr);
   }
@@ -1019,7 +1049,7 @@ async function sendLeadReminder(lead, btn) {
   const MEGA_URL = "https://apinocode01.megaapi.com.br/rest/sendMessage/megacode-M6hpeUt7tF1/text";
   const MEGA_TOKEN = "M6hpeUt7tF1";
 
-  if (btn) { btn.disabled = true; btn.textContent = "Enviando..."; }
+  if (btn) { btn.disabled = true; btn.textContent = "..."; }
   try {
     const res = await fetch(MEGA_URL, {
       method: "POST",
@@ -1031,6 +1061,19 @@ async function sendLeadReminder(lead, btn) {
   } catch (e) {
     toast(`Erro ao enviar: ${e.message}`, "error");
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = "📱 Lembrete"; }
+    if (btn) { btn.disabled = false; btn.textContent = "📱"; }
   }
+}
+
+async function deleteLead(leadId, btn) {
+  if (!confirm("Remover este lead permanentemente? Esta ação não pode ser desfeita.")) return;
+  if (btn) { btn.disabled = true; btn.textContent = "..."; }
+  const { error } = await supabase.from("schedule_leads").delete().eq("id", leadId);
+  if (error) {
+    toast("Erro ao remover: " + error.message, "error");
+    if (btn) { btn.disabled = false; btn.textContent = "×"; }
+    return;
+  }
+  toast("Lead removido.", "success");
+  await loadLeads();
 }
