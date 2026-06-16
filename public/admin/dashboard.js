@@ -196,9 +196,10 @@ async function loadMetrics() {
 
   if (liveRefreshTimer) { clearInterval(liveRefreshTimer); liveRefreshTimer = null; }
 
-  const [metricsResult, liveCounts] = await Promise.all([
+  const [metricsResult, liveCounts, reminderCounts] = await Promise.all([
     supabase.rpc("get_my_metrics"),
     loadLiveViewers(),
+    loadReminderCounts(),
   ]);
 
   const { data, error } = metricsResult;
@@ -234,6 +235,8 @@ async function loadMetrics() {
       ${statCard("Acessos agendamento", totals.schedule_views)}
       ${statCard("Modal de captura", totals.modal_opens)}
       ${statCard("Tempo médio", fmtTime(avgWatchAll), "text")}
+      ${statCard("💬 Lembretes pré-aula", reminderCounts.pre)}
+      ${statCard("✅ Follow-ups pós-aula", reminderCounts.pos)}
     </div>
     <div class="card" style="overflow-x:auto;">
       <div style="display:flex;justify-content:space-between;align-items:center;padding:.6rem .8rem .2rem;">
@@ -286,6 +289,14 @@ async function loadLiveViewers() {
     counts[row.webinar_id] = (counts[row.webinar_id] || 0) + 1;
   }
   return counts;
+}
+
+async function loadReminderCounts() {
+  const [{ count: pre }, { count: pos }] = await Promise.all([
+    supabase.from("lead_reminder_log").select("*", { count: "exact", head: true }).eq("type", "pre"),
+    supabase.from("lead_reminder_log").select("*", { count: "exact", head: true }).eq("type", "pos"),
+  ]);
+  return { pre: pre || 0, pos: pos || 0 };
 }
 
 function refreshLiveCells(counts) {

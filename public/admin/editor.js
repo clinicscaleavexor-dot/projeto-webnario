@@ -926,8 +926,26 @@ async function loadLeads() {
 
   leadsCache = data;
 
+  // Quais leads já receberam lembrete automático (pré ou pós)
+  const { data: reminderLog } = await supabase
+    .from("lead_reminder_log")
+    .select("lead_id, type")
+    .in("lead_id", data.map(l => l.id));
+  const remMap = {};
+  for (const r of (reminderLog || [])) {
+    if (!remMap[r.lead_id]) remMap[r.lead_id] = {};
+    remMap[r.lead_id][r.type] = true;
+  }
+
+  const preTotal = Object.values(remMap).filter(m => m.pre).length;
+  const posTotal = Object.values(remMap).filter(m => m.pos).length;
+
   host.innerHTML = `
-    <div class="leads-summary muted" style="font-size:.85rem;margin-bottom:.6rem;">${data.length} lead${data.length !== 1 ? "s" : ""}</div>
+    <div class="leads-summary muted" style="font-size:.85rem;margin-bottom:.6rem;">
+      ${data.length} lead${data.length !== 1 ? "s" : ""}
+      &nbsp;·&nbsp; 💬 ${preTotal} lembrete${preTotal !== 1 ? "s" : ""} enviado${preTotal !== 1 ? "s" : ""}
+      &nbsp;·&nbsp; ✅ ${posTotal} follow-up${posTotal !== 1 ? "s" : ""} enviado${posTotal !== 1 ? "s" : ""}
+    </div>
     <div class="leads-table-wrap">
       <table class="leads-table">
         <thead>
@@ -937,6 +955,8 @@ async function loadLeads() {
             <th>Horário agendado</th>
             <th>Tipo</th>
             <th>Cadastro</th>
+            <th style="text-align:center;" title="Lembrete automático pré-aula enviado">💬 Lembrete</th>
+            <th style="text-align:center;" title="Follow-up automático pós-aula enviado">✅ Follow-up</th>
             <th>Ações</th>
           </tr>
         </thead>
@@ -947,6 +967,8 @@ async function loadLeads() {
   const tbody = $("leads-tbody");
   for (const lead of data) {
     const typeLabel = { now: "Agora", relative_30: "30 min", scheduled: "Agendado" }[lead.schedule_type] || lead.schedule_type;
+    const hasPre = remMap[lead.id]?.pre;
+    const hasPos = remMap[lead.id]?.pos;
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${escapeHtml(lead.name)}</td>
@@ -954,6 +976,8 @@ async function loadLeads() {
       <td>${new Date(lead.scheduled_for).toLocaleString("pt-BR")}</td>
       <td><span class="tag tag--${lead.schedule_type}">${typeLabel}</span></td>
       <td class="muted">${new Date(lead.created_at).toLocaleString("pt-BR")}</td>
+      <td style="text-align:center;">${hasPre ? '<span title="Lembrete enviado automaticamente">✅</span>' : '<span class="muted" title="Ainda não enviado">—</span>'}</td>
+      <td style="text-align:center;">${hasPos ? '<span title="Follow-up enviado automaticamente">✅</span>' : '<span class="muted" title="Ainda não enviado">—</span>'}</td>
       <td><button class="btn btn--sm btn--ghost lead-remind-btn" data-id="${lead.id}">📱 Lembrete</button></td>
     `;
     tbody.appendChild(tr);
