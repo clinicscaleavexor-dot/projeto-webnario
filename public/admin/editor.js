@@ -1142,8 +1142,8 @@ async function sendLeadFollowup(lead, btn) {
   const digits = lead.phone.replace(/\D/g, "");
   const to = (digits.startsWith("55") ? digits : "55" + digits) + "@c.us";
   const text =
-    `Oii, Tudo bem? 😊\n\n` +
-    `Vi que você começou a assistir nossa aula, você conseguiu ver certinho?`;
+    `Oii, tudo bem? 😊\n\n` +
+    `Sou da equipe da Gisele, você conseguiu ver nossa aula certinho?`;
 
   const MEGA_URL = "https://apinocode01.megaapi.com.br/rest/sendMessage/megacode-M6hpeUt7tF1/text";
   const MEGA_TOKEN = "M6hpeUt7tF1";
