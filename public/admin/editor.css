@@ -78,3 +78,14 @@
 .leads-table tr:hover td { background: var(--bg); }
 .leads-table a { color: var(--green); text-decoration: none; }
 .leads-table a:hover { text-decoration: underline; }
+
+.leads-dispatch-banner {
+  background: rgba(245,158,11,.08);
+  border: 1px solid rgba(245,158,11,.25);
+  border-radius: var(--radius-sm);
+  padding: .55rem 1rem;
+  font-size: .82rem;
+  color: #f59e0b;
+  margin-bottom: .8rem;
+  font-weight: 600;
+}

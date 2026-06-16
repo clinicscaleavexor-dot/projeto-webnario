@@ -917,6 +917,34 @@ async function populateLeadsFilter() {
   }
 }
 
+// Retorna HTML da célula de disparo automático para um lead.
+// offsetMs: negativo = antes da aula (pre), positivo = depois (pos).
+// windowMs: duração da janela de envio.
+function dispatchCell(hasSent, scheduledForISO, offsetMs, windowMs) {
+  if (hasSent) {
+    return '<span style="color:var(--green);font-weight:600;" title="Enviado automaticamente">✅ Enviado</span>';
+  }
+  const fireAt   = new Date(scheduledForISO).getTime() + offsetMs;
+  const windowEnd = fireAt + windowMs;
+  const nowMs    = Date.now();
+
+  if (nowMs > windowEnd) {
+    // Janela já passou sem envio (lead cadastrado depois, ou cron falhou)
+    return '<span class="muted" title="Janela de envio passou sem registro">—</span>';
+  }
+
+  const timeStr  = new Date(fireAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  const diffMin  = Math.round((fireAt - nowMs) / 60000);
+
+  if (diffMin <= 0) {
+    return `<span style="color:#f59e0b;font-weight:600;" title="Dentro da janela de envio agora — cron vai disparar">🕐 agora</span>`;
+  }
+  if (diffMin < 60) {
+    return `<span style="color:#f59e0b;font-weight:600;" title="Envio automático em ${diffMin}min (${timeStr})">🕐 ${diffMin}min</span>`;
+  }
+  return `<span class="muted" title="Envio automático às ${timeStr}">${timeStr}</span>`;
+}
+
 async function loadLeads() {
   const host = $("leads-list");
   host.innerHTML = `<div class="empty">Carregando...</div>`;
@@ -965,12 +993,52 @@ async function loadLeads() {
 
   const showing = displayData.length !== data.length ? ` (mostrando ${displayData.length})` : "";
 
+  // Calcula próximos disparos automáticos para o banner de resumo
+  const nowMs = Date.now();
+  const PRE_OFFSET  = -20 * 60 * 1000; // 20 min antes
+  const PRE_WINDOW  =   5 * 60 * 1000; // janela de 5 min
+  const POS_OFFSET  =  75 * 60 * 1000; // 75 min depois
+  const POS_WINDOW  =   5 * 60 * 1000;
+
+  const pendingPre = displayData.filter(l => {
+    if (remMap[l.id]?.pre) return false;
+    const fireAt = new Date(l.scheduled_for).getTime() + PRE_OFFSET;
+    return nowMs <= fireAt + PRE_WINDOW;
+  });
+  const pendingPos = displayData.filter(l => {
+    if (remMap[l.id]?.pos) return false;
+    const fireAt = new Date(l.scheduled_for).getTime() + POS_OFFSET;
+    return nowMs <= fireAt + POS_WINDOW;
+  });
+
+  function nextFireStr(leads, offset) {
+    const sorted = leads
+      .map(l => new Date(l.scheduled_for).getTime() + offset)
+      .filter(t => t > nowMs)
+      .sort((a, b) => a - b);
+    if (!sorted.length) return null;
+    const next = sorted[0];
+    const diffMin = Math.round((next - nowMs) / 60000);
+    const timeStr = new Date(next).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    if (diffMin <= 0) return "agora";
+    if (diffMin < 60) return `em ${diffMin}min (${timeStr})`;
+    return `às ${timeStr}`;
+  }
+
+  const nextPreStr  = nextFireStr(pendingPre, PRE_OFFSET);
+  const nextPosStr  = nextFireStr(pendingPos, POS_OFFSET);
+
+  const bannerParts = [];
+  if (pendingPre.length) bannerParts.push(`💬 ${pendingPre.length} lembrete${pendingPre.length !== 1 ? "s" : ""} pendente${pendingPre.length !== 1 ? "s" : ""}${nextPreStr ? " · Próximo: " + nextPreStr : ""}`);
+  if (pendingPos.length) bannerParts.push(`✅ ${pendingPos.length} follow-up${pendingPos.length !== 1 ? "s" : ""} pendente${pendingPos.length !== 1 ? "s" : ""}${nextPosStr ? " · Próximo: " + nextPosStr : ""}`);
+
   host.innerHTML = `
     <div class="leads-summary muted" style="font-size:.85rem;margin-bottom:.6rem;">
       ${data.length} lead${data.length !== 1 ? "s" : ""}${showing}
-      &nbsp;·&nbsp; 💬 ${preTotal} lembrete${preTotal !== 1 ? "s" : ""} enviado${preTotal !== 1 ? "s" : ""}
+      &nbsp;·&nbsp; 💬 ${preTotal} enviado${preTotal !== 1 ? "s" : ""}
       &nbsp;·&nbsp; ✅ ${posTotal} follow-up${posTotal !== 1 ? "s" : ""} enviado${posTotal !== 1 ? "s" : ""}
     </div>
+    ${bannerParts.length ? `<div class="leads-dispatch-banner">${bannerParts.join("&emsp;|&emsp;")}</div>` : ""}
     <div class="leads-table-wrap">
       <table class="leads-table">
         <thead>
@@ -979,9 +1047,8 @@ async function loadLeads() {
             <th>Telefone</th>
             <th>Horário agendado</th>
             <th>Tipo</th>
-            <th>Cadastro</th>
-            <th style="text-align:center;" title="Lembrete automático pré-aula enviado">💬 Lembrete</th>
-            <th style="text-align:center;" title="Follow-up automático pós-aula enviado">✅ Follow-up</th>
+            <th style="text-align:center;" title="Lembrete pré-aula: enviado ou horário previsto do próximo envio">💬 Próx. Lembrete</th>
+            <th style="text-align:center;" title="Follow-up pós-aula: enviado ou horário previsto do próximo envio">✅ Próx. Follow-up</th>
             <th>Ações</th>
           </tr>
         </thead>
@@ -1000,9 +1067,8 @@ async function loadLeads() {
       <td><span class="lead-phone-copy" data-phone="${escapeHtml(lead.phone)}" title="Clique para copiar">${escapeHtml(lead.phone)}</span></td>
       <td>${new Date(lead.scheduled_for).toLocaleString("pt-BR")}</td>
       <td><span class="tag tag--${lead.schedule_type}">${typeLabel}</span></td>
-      <td class="muted">${new Date(lead.created_at).toLocaleString("pt-BR")}</td>
-      <td style="text-align:center;">${hasPre ? '<span title="Lembrete enviado automaticamente">✅</span>' : '<span class="muted" title="Ainda não enviado">—</span>'}</td>
-      <td style="text-align:center;">${hasPos ? '<span title="Follow-up enviado automaticamente">✅</span>' : '<span class="muted" title="Ainda não enviado">—</span>'}</td>
+      <td style="text-align:center;">${dispatchCell(hasPre, lead.scheduled_for, PRE_OFFSET, PRE_WINDOW)}</td>
+      <td style="text-align:center;">${dispatchCell(hasPos, lead.scheduled_for, POS_OFFSET, POS_WINDOW)}</td>
       <td>
         <div class="row" style="gap:.4rem;flex-wrap:nowrap;">
           <button class="btn btn--sm btn--ghost lead-remind-btn" data-id="${lead.id}" title="Enviar lembrete manual">📱</button>
