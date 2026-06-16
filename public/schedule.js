@@ -62,7 +62,7 @@ function renderSpecialSlots() {
       type: "now",
       scheduled_for_ms: serverNowMs,
       label: "agora",
-      watchParams: { mode: "now" },
+      watchParams: { start: String(serverNowMs) },
       redirect: true,
     };
     openLeadModal("Você vai assistir agora! Preencha seus dados para entrar na aula.");
