@@ -188,11 +188,20 @@ function setupDashTabs() {
 // =====================================================================
 //  MÉTRICAS
 // =====================================================================
+let liveRefreshTimer = null;
+
 async function loadMetrics() {
   const el = document.getElementById("metrics-content");
   el.innerHTML = `<p class="muted">Carregando...</p>`;
 
-  const { data, error } = await supabase.rpc("get_my_metrics");
+  if (liveRefreshTimer) { clearInterval(liveRefreshTimer); liveRefreshTimer = null; }
+
+  const [metricsResult, liveCounts] = await Promise.all([
+    supabase.rpc("get_my_metrics"),
+    loadLiveViewers(),
+  ]);
+
+  const { data, error } = metricsResult;
   if (error || !data) {
     el.innerHTML = `<div class="empty">Erro ao carregar métricas. Verifique se o SQL foi executado no Supabase.</div>`;
     return;
@@ -206,59 +215,107 @@ async function loadMetrics() {
     leads: a.leads + (+r.leads || 0),
     schedule_views: a.schedule_views + (+r.schedule_views || 0),
     modal_opens: a.modal_opens + (+r.modal_opens || 0),
-    watch_views: a.watch_views + (+r.watch_views || 0),
-    cta_clicks: a.cta_clicks + (+r.cta_clicks || 0),
-  }), { leads: 0, schedule_views: 0, modal_opens: 0, watch_views: 0, cta_clicks: 0 });
+    avg_watch_seconds: a.avg_watch_seconds + (+r.avg_watch_seconds || 0),
+  }), { leads: 0, schedule_views: 0, modal_opens: 0, avg_watch_seconds: 0 });
+
+  const totalLive = Object.values(liveCounts).reduce((s, n) => s + n, 0);
+  const avgWatchAll = data.length ? Math.round(totals.avg_watch_seconds / data.length) : 0;
 
   const fmtTime = (s) => {
     s = +s || 0;
+    if (s < 60) return `${s}s`;
     return `${Math.floor(s / 60)}m ${s % 60}s`;
   };
 
   el.innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:.8rem;margin-bottom:1.2rem;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:.8rem;margin-bottom:1.2rem;">
+      ${statCard("🔴 Assistindo agora", totalLive, "live", "metrics-live-total")}
       ${statCard("Leads cadastrados", totals.leads)}
       ${statCard("Acessos agendamento", totals.schedule_views)}
       ${statCard("Modal de captura", totals.modal_opens)}
-      ${statCard("Assistiram", totals.watch_views)}
-      ${statCard("Cliques CTA", totals.cta_clicks)}
+      ${statCard("Tempo médio", fmtTime(avgWatchAll), "text")}
     </div>
     <div class="card" style="overflow-x:auto;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:.6rem .8rem .2rem;">
+        <strong style="font-size:.9rem;">Por webinário</strong>
+        <small class="muted" id="metrics-updated"></small>
+      </div>
       <table style="width:100%;border-collapse:collapse;font-size:.86rem;">
         <thead>
           <tr style="border-bottom:1px solid var(--border);color:var(--text-dim);">
             <th style="text-align:left;padding:.6rem .8rem;font-weight:600;">Webinário</th>
+            <th style="text-align:right;padding:.6rem .8rem;">Agora 🔴</th>
+            <th style="text-align:right;padding:.6rem .8rem;">Leads</th>
             <th style="text-align:right;padding:.6rem .8rem;">Agend.</th>
             <th style="text-align:right;padding:.6rem .8rem;">Modal</th>
-            <th style="text-align:right;padding:.6rem .8rem;">Leads</th>
-            <th style="text-align:right;padding:.6rem .8rem;">Assistiram</th>
             <th style="text-align:right;padding:.6rem .8rem;">Tempo médio</th>
-            <th style="text-align:right;padding:.6rem .8rem;">CTA</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody id="metrics-tbody">
           ${data.map((r) => `
-            <tr style="border-bottom:1px solid var(--bg);">
+            <tr style="border-bottom:1px solid var(--bg);" data-wid="${r.webinar_id || ""}">
               <td style="padding:.6rem .8rem;">
                 <strong>${escapeHtml(r.title)}</strong>
                 <span class="badge badge--${r.status}" style="margin-left:.4rem;">${r.status === "published" ? "Publicado" : "Rascunho"}</span>
               </td>
+              <td style="text-align:right;padding:.6rem .8rem;" class="live-count">${liveCounts[r.webinar_id] || 0}</td>
+              <td style="text-align:right;padding:.6rem .8rem;">${r.leads}</td>
               <td style="text-align:right;padding:.6rem .8rem;">${r.schedule_views}</td>
               <td style="text-align:right;padding:.6rem .8rem;">${r.modal_opens}</td>
-              <td style="text-align:right;padding:.6rem .8rem;">${r.leads}</td>
-              <td style="text-align:right;padding:.6rem .8rem;">${r.watch_views}</td>
               <td style="text-align:right;padding:.6rem .8rem;">${fmtTime(r.avg_watch_seconds)}</td>
-              <td style="text-align:right;padding:.6rem .8rem;">${r.cta_clicks}</td>
             </tr>`).join("")}
         </tbody>
       </table>
     </div>`;
+
+  markUpdated();
+  liveRefreshTimer = setInterval(async () => {
+    const counts = await loadLiveViewers();
+    refreshLiveCells(counts);
+  }, 30000);
 }
 
-function statCard(label, value) {
+async function loadLiveViewers() {
+  const twoMinAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+  const { data } = await supabase
+    .from("live_presence")
+    .select("webinar_id")
+    .gte("last_seen", twoMinAgo);
+  const counts = {};
+  for (const row of (data || [])) {
+    counts[row.webinar_id] = (counts[row.webinar_id] || 0) + 1;
+  }
+  return counts;
+}
+
+function refreshLiveCells(counts) {
+  const rows = document.querySelectorAll("#metrics-tbody tr[data-wid]");
+  let total = 0;
+  rows.forEach((tr) => {
+    const n = counts[tr.dataset.wid] || 0;
+    total += n;
+    const cell = tr.querySelector(".live-count");
+    if (cell) cell.textContent = n;
+  });
+  const liveTotal = document.getElementById("metrics-live-total");
+  if (liveTotal) liveTotal.textContent = total.toLocaleString("pt-BR");
+  markUpdated();
+}
+
+function markUpdated() {
+  const el = document.getElementById("metrics-updated");
+  if (el) el.textContent = "Atualizado às " + new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+function statCard(label, value, type = "number", id = "") {
+  const display = type === "number"
+    ? Number(value).toLocaleString("pt-BR")
+    : String(value);
+  const accent = type === "live" ? "color:#f87171;" : "color:var(--accent);";
+  const idAttr = id ? `id="${id}"` : "";
   return `
     <div class="card" style="padding:1rem;text-align:center;">
-      <div style="font-size:1.8rem;font-weight:800;color:var(--accent);">${Number(value).toLocaleString("pt-BR")}</div>
+      <div ${idAttr} style="font-size:1.8rem;font-weight:800;${accent}">${display}</div>
       <div style="font-size:.78rem;color:var(--text-dim);margin-top:.3rem;">${escapeHtml(label)}</div>
     </div>`;
 }

@@ -4,6 +4,7 @@ import { fmtClock, escapeHtml, avatarFor } from "./assets/js/util.js";
 const $ = (id) => document.getElementById(id);
 const _params = new URLSearchParams(location.search);
 const slug = _params.get("w");
+const SESSION_ID = crypto.randomUUID();
 const scheduleId = _params.get("s") || null;
 const modeParam = _params.get("mode") || null;
 const startParam = _params.get("start") || null;
@@ -100,6 +101,9 @@ async function init() {
     const secs = Math.floor(elapsedSeconds());
     if (secs > 0 && mode === "live") trackEvent(webinarId, "watch_heartbeat", { value: secs });
   }, 60000);
+
+  updatePresence();
+  setInterval(updatePresence, 30000);
 }
 
 // ---------- YouTube helpers ----------
@@ -528,6 +532,15 @@ function updateViewers(elapsed) {
   $("viewer-count").textContent = txt;
   const v2 = $("viewer-count-2");
   if (v2) v2.textContent = txt;
+}
+
+// ---------- Presença real ----------
+function updatePresence() {
+  if (!webinarId) return;
+  supabase.from("live_presence").upsert(
+    { webinar_id: webinarId, session_id: SESSION_ID, last_seen: new Date().toISOString() },
+    { onConflict: "webinar_id,session_id" }
+  ).then();
 }
 
 // ---------- Rastreamento ----------
