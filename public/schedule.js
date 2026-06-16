@@ -98,84 +98,65 @@ function renderDaySlots(webinar, schedules, serverNow) {
   const host = $("slots-days");
   const now = new Date(serverNow).getTime();
   const todayStr = toDateStr(new Date(now));
-  const tomorrowStr = toDateStr(new Date(now + 86400000));
 
-  // Filtra horários de hoje (a partir de agora - 30min) e amanhã
-  const visible = (schedules || []).filter((s) => {
-    const startMs = new Date(s.start_at).getTime();
-    const endMs = startMs + (webinar.video_duration_seconds || 3600) * 1000;
-    const dateStr = toDateStr(new Date(s.start_at));
-    if (dateStr === todayStr) return endMs > now;
-    if (dateStr === tomorrowStr) return true;
-    return false;
-  });
+  // Apenas horários que ainda não começaram
+  const allFuture = (schedules || []).filter((s) => new Date(s.start_at).getTime() > now);
+
+  // Se ainda há horários hoje → mostra só hoje; senão → só o próximo dia disponível
+  const todaySlots = allFuture.filter((s) => toDateStr(new Date(s.start_at)) === todayStr);
+  let visible;
+  if (todaySlots.length > 0) {
+    visible = todaySlots;
+  } else {
+    const nextDayStr = allFuture.length > 0 ? toDateStr(new Date(allFuture[0].start_at)) : null;
+    visible = nextDayStr ? allFuture.filter((s) => toDateStr(new Date(s.start_at)) === nextDayStr) : [];
+  }
 
   if (!visible.length) return;
 
-  // Agrupa por dia
-  const groups = {};
+  const firstDateStr = toDateStr(new Date(visible[0].start_at));
+  const isToday = firstDateStr === todayStr;
+  const d = new Date(visible[0].start_at);
+  const dayLabel = isToday
+    ? "Hoje — " + d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })
+    : "Amanhã — " + d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+
+  const section = document.createElement("div");
+  section.className = "slots-day-section";
+  section.innerHTML = `<div class="slots-day-header">${dayLabel}</div>`;
+
+  const grid = document.createElement("div");
+  grid.className = "slots-grid";
+
   for (const s of visible) {
-    const d = new Date(s.start_at);
-    const key = toDateStr(d);
-    if (!groups[key]) groups[key] = [];
-    groups[key].push(s);
+    const startMs = new Date(s.start_at).getTime();
+    const timeStr = new Date(s.start_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    const dayName = new Date(s.start_at).toLocaleDateString("pt-BR", { weekday: "long" });
+
+    const card = document.createElement("div");
+    card.className = "slot-card";
+    card.innerHTML = `
+      <div class="slot-day">${escapeHtml(dayName)}</div>
+      <div class="slot-time">${timeStr}</div>
+      ${s.label ? `<div class="slot-label">${escapeHtml(s.label)}</div>` : ""}
+    `;
+
+    card.addEventListener("click", () => {
+      pendingSlot = {
+        type: "scheduled",
+        schedule_id: s.id,
+        scheduled_for_ms: startMs,
+        label: `às ${timeStr} de ${isToday ? "hoje" : "amanhã"}`,
+        watchParams: { s: s.id },
+      };
+      openLeadModal(`Você quer assistir às ${timeStr} de ${isToday ? "hoje" : "amanhã"}.`);
+    });
+
+    grid.appendChild(card);
   }
 
-  host.innerHTML = "";
-  for (const [dateKey, slots] of Object.entries(groups)) {
-    const d = new Date(slots[0].start_at);
-    const isToday = dateKey === todayStr;
-    const dayLabel = isToday
-      ? "Hoje — " + d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })
-      : "Amanhã — " + d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
-
-    const section = document.createElement("div");
-    section.className = "slots-day-section";
-    section.innerHTML = `<div class="slots-day-header">${dayLabel}</div>`;
-
-    const grid = document.createElement("div");
-    grid.className = "slots-grid";
-
-    for (const s of slots) {
-      const startMs = new Date(s.start_at).getTime();
-      const isLive = startMs <= now && now < startMs + (webinar.video_duration_seconds || 3600) * 1000;
-      const timeStr = new Date(s.start_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-      const dayName = new Date(s.start_at).toLocaleDateString("pt-BR", { weekday: "long" });
-
-      const card = document.createElement("div");
-      card.className = "slot-card";
-      card.innerHTML = `
-        ${isLive ? `<div class="slot-live"><span class="slot-live-dot"></span> AO VIVO AGORA</div>` : ""}
-        <div class="slot-day">${escapeHtml(dayName)}</div>
-        <div class="slot-time">${timeStr}</div>
-        ${s.label ? `<div class="slot-label">${escapeHtml(s.label)}</div>` : ""}
-      `;
-
-      if (isLive) {
-        card.addEventListener("click", () => showConfirm({
-          heading: "Está ao vivo agora!",
-          label: "A transmissão já está acontecendo. Clique para entrar.",
-          url: watchUrl(webinar.slug, { s: s.id }),
-        }));
-      } else {
-        card.addEventListener("click", () => {
-          pendingSlot = {
-            type: "scheduled",
-            schedule_id: s.id,
-            scheduled_for_ms: startMs,
-            label: `às ${timeStr} de ${isToday ? "hoje" : "amanhã"}`,
-            watchParams: { s: s.id },
-          };
-          openLeadModal(`Você quer assistir às ${timeStr} de ${isToday ? "hoje" : "amanhã"}.`);
-        });
-      }
-
-      grid.appendChild(card);
-    }
-
-    section.appendChild(grid);
-    host.appendChild(section);
-  }
+  section.appendChild(grid);
+  host.appendChild(section);
 }
 
 function toDateStr(date) {
