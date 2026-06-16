@@ -1,8 +1,7 @@
 {
   "outputDirectory": "public",
   "functions": {
-    "api/dispatch.js": {
-      "maxDuration": 30
-    }
+    "api/dispatch.js": { "maxDuration": 30 },
+    "api/lead-reminders.js": { "maxDuration": 30 }
   }
 }
