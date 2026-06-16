@@ -66,6 +66,7 @@ module.exports = async function handler(req, res) {
   const posMin = new Date(nowMs - 80 * 60 * 1000).toISOString();
   const posMax = new Date(nowMs - 75 * 60 * 1000).toISOString();
 
+  // Busca leads pendentes via RPC (filtra já enviados com NOT EXISTS)
   let leads = [];
   try {
     leads = await sbRpc("get_pending_reminders", {
@@ -83,8 +84,25 @@ module.exports = async function handler(req, res) {
     if (sent >= BATCH_SIZE) break;
 
     const type = lead.reminder_type;
-    const url  = buildWatchUrl(lead.webinar_slug, lead);
 
+    // Grava o log ANTES de enviar (atômico via ON CONFLICT DO NOTHING).
+    // Se retornar false, outra invocação já enviou — pula.
+    let claimed = false;
+    try {
+      claimed = await sbRpc("claim_reminder", { p_lead_id: lead.id, p_type: type });
+    } catch (e) {
+      results.log.push({ name: lead.name, type, skip: "claim_error", error: e.message });
+      results.errors++;
+      continue;
+    }
+
+    if (!claimed) {
+      results.log.push({ name: lead.name, type, skip: "ja_enviado" });
+      continue;
+    }
+
+    // Envia WhatsApp somente após garantir o claim no banco
+    const url  = buildWatchUrl(lead.webinar_slug, lead);
     const text = type === "pre"
       ? `🌸 Oi, ${lead.name}! Tudo bem?\n\nSua aula do *Projeto Topos Lucrativos* começa em breve! 💖\n\nJá pode clicar no link abaixo para entrar na transmissão:\n\n👉 ${url}\n\nTe esperamos lá! ✨`
       : `🌸 Oi, ${lead.name}! Tudo bem?\n\nQueria saber se você conseguiu assistir à nossa aula do *Projeto Topos Lucrativos* hoje! 💖\n\nConseguiu assistir certinho? Me conta! 😊`;
@@ -92,15 +110,9 @@ module.exports = async function handler(req, res) {
     const { ok, status, error: sendErr } = await sendWhatsApp(lead.phone, text);
 
     if (ok) {
-      try {
-        await sbRpc("log_reminder_sent", { p_lead_id: lead.id, p_type: type });
-        results[type]++;
-        sent++;
-        results.log.push({ name: lead.name, type, sent: true });
-      } catch (e) {
-        results.log.push({ name: lead.name, type, skip: "log_error", error: e.message });
-        results.errors++;
-      }
+      results[type]++;
+      sent++;
+      results.log.push({ name: lead.name, type, sent: true });
     } else {
       results.errors++;
       results.log.push({ name: lead.name, type, skip: "mega_error", status, error: sendErr });
