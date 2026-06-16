@@ -3,9 +3,5 @@
   "functions": {
     "api/dispatch.js": { "maxDuration": 30 },
     "api/lead-reminders.js": { "maxDuration": 30 }
-  },
-  "crons": [
-    { "path": "/api/dispatch",        "schedule": "* * * * *" },
-    { "path": "/api/lead-reminders",  "schedule": "* * * * *" }
-  ]
+  }
 }
