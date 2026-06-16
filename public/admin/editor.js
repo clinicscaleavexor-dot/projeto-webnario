@@ -57,6 +57,12 @@ const $ = (id) => document.getElementById(id);
       if (lead) sendLeadReminder(lead, remindBtn);
       return;
     }
+    const followBtn = e.target.closest(".lead-followup-btn");
+    if (followBtn) {
+      const lead = leadsCache.find((l) => l.id === followBtn.dataset.id);
+      if (lead) sendLeadFollowup(lead, followBtn);
+      return;
+    }
     const delBtn = e.target.closest(".lead-delete-btn");
     if (delBtn) {
       const lead = leadsCache.find((l) => l.id === delBtn.dataset.id);
@@ -1072,6 +1078,7 @@ async function loadLeads() {
       <td>
         <div class="row" style="gap:.4rem;flex-wrap:nowrap;">
           <button class="btn btn--sm btn--ghost lead-remind-btn" data-id="${lead.id}" title="Enviar lembrete manual">📱</button>
+          <button class="btn btn--sm btn--ghost lead-followup-btn" data-id="${lead.id}" title="Enviar follow-up manual">💬</button>
           <button class="btn btn--sm btn--danger lead-delete-btn" data-id="${lead.id}" title="Remover lead">×</button>
         </div>
       </td>
@@ -1128,6 +1135,32 @@ async function sendLeadReminder(lead, btn) {
     toast(`Erro ao enviar: ${e.message}`, "error");
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = "📱"; }
+  }
+}
+
+async function sendLeadFollowup(lead, btn) {
+  const digits = lead.phone.replace(/\D/g, "");
+  const to = (digits.startsWith("55") ? digits : "55" + digits) + "@c.us";
+  const text =
+    `Oii, Tudo bem? 😊\n\n` +
+    `Vi que você começou a assistir nossa aula, você conseguiu ver certinho?`;
+
+  const MEGA_URL = "https://apinocode01.megaapi.com.br/rest/sendMessage/megacode-M6hpeUt7tF1/text";
+  const MEGA_TOKEN = "M6hpeUt7tF1";
+
+  if (btn) { btn.disabled = true; btn.textContent = "..."; }
+  try {
+    const res = await fetch(MEGA_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${MEGA_TOKEN}` },
+      body: JSON.stringify({ messageData: { to, text } }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    toast(`Follow-up enviado para ${lead.name}!`, "success");
+  } catch (e) {
+    toast(`Erro ao enviar: ${e.message}`, "error");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "💬"; }
   }
 }
 
