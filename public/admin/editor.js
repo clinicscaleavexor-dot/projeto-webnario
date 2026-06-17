@@ -40,6 +40,7 @@ const $ = (id) => document.getElementById(id);
   $("leads-refresh").addEventListener("click", () => loadLeads());
   $("leads-filter").addEventListener("change", () => loadLeads());
   $("leads-reminder-filter").addEventListener("change", () => loadLeads());
+  $("leads-unify").addEventListener("change", () => loadLeads());
   $("leads-export").addEventListener("click", exportLeadsCsv);
   $("leads-list").addEventListener("click", (e) => {
     const phoneEl = e.target.closest(".lead-phone-copy");
@@ -891,6 +892,7 @@ async function regenerateGroup(groupId, template) {
 // =====================================================================
 let allSchedules = [];
 let leadsCache = [];
+let remMap = {}; // mapa global: lead_id → { pre: bool, pos: bool }
 
 async function populateLeadsFilter() {
   const { data } = await supabase
@@ -980,7 +982,7 @@ async function loadLeads() {
     .from("lead_reminder_log")
     .select("lead_id, type")
     .in("lead_id", data.map(l => l.id));
-  const remMap = {};
+  remMap = {};
   for (const r of (reminderLog || [])) {
     if (!remMap[r.lead_id]) remMap[r.lead_id] = {};
     remMap[r.lead_id][r.type] = true;
@@ -996,6 +998,28 @@ async function loadLeads() {
   else if (reminderFilter === "pre_pending")  displayData = data.filter(l => !remMap[l.id]?.pre);
   else if (reminderFilter === "pos_sent")    displayData = data.filter(l => remMap[l.id]?.pos);
   else if (reminderFilter === "pos_pending") displayData = data.filter(l => !remMap[l.id]?.pos);
+
+  // Unificar contatos: agrupa por telefone, mantém o lead mais recente de cada número
+  if ($("leads-unify").checked) {
+    const phoneMap = new Map();
+    for (const lead of displayData) {
+      const phone = lead.phone.replace(/\D/g, "");
+      if (!phoneMap.has(phone)) {
+        phoneMap.set(phone, { ...lead, _count: 1 });
+      } else {
+        const existing = phoneMap.get(phone);
+        existing._count++;
+        // mantém o de scheduled_for mais recente
+        if (new Date(lead.scheduled_for) > new Date(existing.scheduled_for)) {
+          phoneMap.set(phone, { ...lead, _count: existing._count });
+        }
+        // merge do remMap: se qualquer lead do mesmo telefone recebeu, marca como enviado
+        if (remMap[lead.id]?.pre) { if (!remMap[existing.id]) remMap[existing.id] = {}; remMap[existing.id].pre = true; }
+        if (remMap[lead.id]?.pos) { if (!remMap[existing.id]) remMap[existing.id] = {}; remMap[existing.id].pos = true; }
+      }
+    }
+    displayData = [...phoneMap.values()];
+  }
 
   const showing = displayData.length !== data.length ? ` (mostrando ${displayData.length})` : "";
 
@@ -1068,8 +1092,11 @@ async function loadLeads() {
     const hasPre = remMap[lead.id]?.pre;
     const hasPos = remMap[lead.id]?.pos;
     const tr = document.createElement("tr");
+    const countBadge = lead._count > 1
+      ? `<span class="tag" style="background:rgba(245,158,11,.2);color:#f59e0b;margin-left:.4rem;" title="${lead._count} agendamentos do mesmo número">${lead._count}x</span>`
+      : "";
     tr.innerHTML = `
-      <td>${escapeHtml(lead.name)}</td>
+      <td>${escapeHtml(lead.name)}${countBadge}</td>
       <td><span class="lead-phone-copy" data-phone="${escapeHtml(lead.phone)}" title="Clique para copiar">${escapeHtml(lead.phone)}</span></td>
       <td>${new Date(lead.scheduled_for).toLocaleString("pt-BR")}</td>
       <td><span class="tag tag--${lead.schedule_type}">${typeLabel}</span></td>
@@ -1104,7 +1131,17 @@ function exportLeadsCsv() {
   a.click();
 }
 
+// Verifica se qualquer lead com o mesmo telefone já recebeu aquele tipo de mensagem
+function phoneAlreadySent(phone, type) {
+  const digits = phone.replace(/\D/g, "");
+  return leadsCache.some(l => l.phone.replace(/\D/g, "") === digits && remMap[l.id]?.[type]);
+}
+
 async function sendLeadReminder(lead, btn) {
+  if (phoneAlreadySent(lead.phone, "pre")) {
+    toast(`${lead.name} já recebeu o lembrete automático. Envio bloqueado para evitar duplicidade.`, "error");
+    return;
+  }
   const digits = lead.phone.replace(/\D/g, "");
   const to = (digits.startsWith("55") ? digits : "55" + digits) + "@c.us";
   const baseUrl = publicUrl(webinar.slug);
@@ -1139,6 +1176,10 @@ async function sendLeadReminder(lead, btn) {
 }
 
 async function sendLeadFollowup(lead, btn) {
+  if (phoneAlreadySent(lead.phone, "pos")) {
+    toast(`${lead.name} já recebeu o follow-up automático. Envio bloqueado para evitar duplicidade.`, "error");
+    return;
+  }
   const digits = lead.phone.replace(/\D/g, "");
   const to = (digits.startsWith("55") ? digits : "55" + digits) + "@c.us";
   const text =
