@@ -89,3 +89,39 @@
   margin-bottom: .8rem;
   font-weight: 600;
 }
+
+/* Painel de configurações de disparo */
+.disp-settings-panel {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: .85rem 1rem;
+  margin-bottom: .8rem; display: flex; flex-wrap: wrap;
+  gap: .8rem 1.4rem; align-items: flex-start;
+}
+.disp-settings-panel .section-label {
+  font-size: .72rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .05em; color: var(--text-dim); margin-bottom: .5rem;
+}
+/* Toggle switch */
+.disp-toggle { display:flex; align-items:center; gap:.5rem; cursor:pointer; user-select:none; margin-bottom:.35rem; }
+.disp-toggle input[type=checkbox] { position:absolute; opacity:0; width:0; height:0; }
+.disp-track {
+  position:relative; width:2.5rem; height:1.35rem;
+  background:var(--border); border-radius:999px;
+  transition:background .2s; flex-shrink:0;
+}
+.disp-track::after {
+  content:''; position:absolute;
+  width:1.05rem; height:1.05rem;
+  background:white; border-radius:50%;
+  top:.15rem; left:.15rem;
+  transition:left .2s; box-shadow:0 1px 3px rgba(0,0,0,.25);
+}
+.disp-toggle input:checked + .disp-track { background: var(--green,#22c55e); }
+.disp-toggle input:checked + .disp-track::after { left:1.15rem; }
+.disp-label { font-size:.85rem; }
+.disp-paused .disp-track { background:#ef4444; }
+.leads-dispatch-paused-banner {
+  background:rgba(239,68,68,.1); border:1px solid rgba(239,68,68,.35);
+  border-radius:var(--radius-sm); padding:.5rem 1rem; font-size:.82rem;
+  color:#f87171; margin-bottom:.6rem; font-weight:600;
+}

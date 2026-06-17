@@ -64,6 +64,12 @@ const $ = (id) => document.getElementById(id);
       if (lead) sendLeadFollowup(lead, followBtn);
       return;
     }
+    const audioBtn = e.target.closest(".lead-audio-btn");
+    if (audioBtn) {
+      const lead = leadsCache.find((l) => l.id === audioBtn.dataset.id);
+      if (lead) sendLeadAudio(lead, audioBtn);
+      return;
+    }
     const delBtn = e.target.closest(".lead-delete-btn");
     if (delBtn) {
       const lead = leadsCache.find((l) => l.id === delBtn.dataset.id);
@@ -86,15 +92,163 @@ function setupTabs() {
   document.querySelectorAll(".tab").forEach((tab) => {
     tab.addEventListener("click", () => {
       activateTab(tab.dataset.tab);
-      if (tab.dataset.tab === "leads") loadLeads();
+      if (tab.dataset.tab === "leads") openLeadsTab();
     });
   });
   // Ativa aba via parâmetro ?tab= na URL (ex: ?tab=leads)
   const tabParam = new URLSearchParams(location.search).get("tab");
   if (tabParam) {
     activateTab(tabParam);
-    if (tabParam === "leads") loadLeads();
+    if (tabParam === "leads") openLeadsTab();
   }
+}
+
+function openLeadsTab() {
+  if (!settingsPanelReady) {
+    settingsPanelReady = true;
+    renderDispatchSettings();
+    loadDispatchSettings(); // async: atualiza valores quando retornar
+  }
+  loadLeads();
+}
+
+async function loadDispatchSettings() {
+  try {
+    const { data } = await supabase.from("dispatch_settings").select("key, value");
+    for (const r of (data || [])) dispatchSettings[r.key] = r.value;
+    updateSettingsPanel();
+  } catch {}
+}
+
+async function saveDispatchSetting(key, value) {
+  dispatchSettings[key] = value;
+  try {
+    await supabase.from("dispatch_settings").upsert({ key, value, updated_at: new Date().toISOString() });
+  } catch (e) {
+    toast("Erro ao salvar configuração: " + e.message, "error");
+  }
+}
+
+function renderDispatchSettings() {
+  const panel = $("leads-settings-panel");
+  if (!panel) return;
+  const preOn = dispatchSettings.auto_pre_enabled !== "false";
+  const posOn = dispatchSettings.auto_pos_enabled !== "false";
+  const audioUrl = dispatchSettings.followup_audio_url || "";
+  panel.innerHTML = `
+    <div class="disp-settings-panel">
+      <div>
+        <div class="section-label">⚙️ Disparos automáticos</div>
+        <label class="disp-toggle" title="Lembrete via cron 20 min antes da aula">
+          <input type="checkbox" id="sett-auto-pre" ${preOn ? "checked" : ""}>
+          <span class="disp-track"></span>
+          <span class="disp-label">💬 Lembrete pré-aula</span>
+        </label>
+        <label class="disp-toggle" title="Follow-up texto via cron 75 min após a aula">
+          <input type="checkbox" id="sett-auto-pos" ${posOn ? "checked" : ""}>
+          <span class="disp-track"></span>
+          <span class="disp-label">✅ Follow-up em texto</span>
+        </label>
+        <button id="sett-pause-all" class="btn btn--sm ${!preOn && !posOn ? "btn--primary" : "btn--danger"}" style="margin-top:.3rem;font-size:.78rem;">
+          ${!preOn && !posOn ? "▶ Retomar Tudo" : "⏸ Pausar Tudo"}
+        </button>
+      </div>
+      <div>
+        <div class="section-label">🎙️ Áudio de follow-up</div>
+        <div class="row" style="gap:.5rem;flex-wrap:wrap;align-items:center;">
+          <label class="btn btn--sm" style="cursor:pointer;display:inline-flex;align-items:center;gap:.35rem;" title="Selecione MP3, OGG ou WAV — será enviado como nota de voz no WhatsApp">
+            📂 Enviar arquivo de áudio
+            <input type="file" id="sett-audio-file" accept="audio/*,.ogg,.mp3,.wav,.m4a,.aac" style="display:none;">
+          </label>
+          <span id="sett-upload-status" style="font-size:.8rem;color:var(--text-dim);">
+            ${audioUrl ? "✓ Áudio configurado" : "Nenhum arquivo enviado"}
+          </span>
+        </div>
+        ${audioUrl ? `
+          <audio controls src="${escapeHtml(audioUrl)}" style="height:34px;width:100%;max-width:320px;margin-top:.4rem;display:block;"></audio>
+          <button class="btn btn--sm" id="sett-clear-audio" style="margin-top:.35rem;font-size:.76rem;">✕ Remover áudio</button>
+        ` : ""}
+      </div>
+    </div>`;
+
+  $("sett-auto-pre").addEventListener("change", async (e) => {
+    await saveDispatchSetting("auto_pre_enabled", e.target.checked ? "true" : "false");
+    updatePauseBtn();
+    toast(e.target.checked ? "Lembrete automático ativado." : "Lembrete automático pausado.", e.target.checked ? "success" : "error");
+  });
+  $("sett-auto-pos").addEventListener("change", async (e) => {
+    await saveDispatchSetting("auto_pos_enabled", e.target.checked ? "true" : "false");
+    updatePauseBtn();
+    toast(e.target.checked ? "Follow-up automático ativado." : "Follow-up automático pausado.", e.target.checked ? "success" : "error");
+  });
+  $("sett-pause-all").addEventListener("click", async () => {
+    const allPaused = dispatchSettings.auto_pre_enabled === "false" && dispatchSettings.auto_pos_enabled === "false";
+    const newVal = allPaused ? "true" : "false";
+    await Promise.all([
+      saveDispatchSetting("auto_pre_enabled", newVal),
+      saveDispatchSetting("auto_pos_enabled", newVal),
+    ]);
+    if ($("sett-auto-pre")) $("sett-auto-pre").checked = newVal === "true";
+    if ($("sett-auto-pos")) $("sett-auto-pos").checked = newVal === "true";
+    updatePauseBtn();
+    toast(allPaused ? "Disparos automáticos retomados." : "Todos os disparos automáticos pausados.", allPaused ? "success" : "error");
+  });
+
+  $("sett-audio-file").addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const label = e.target.closest("label");
+    const statusEl = $("sett-upload-status");
+    if (label) label.style.opacity = ".6";
+    if (statusEl) statusEl.textContent = "Enviando...";
+    try {
+      const url = await uploadAudio(file);
+      await saveDispatchSetting("followup_audio_url", url);
+      toast("Áudio enviado! Botão 🎙️ agora está ativo nos leads.", "success");
+      renderDispatchSettings();
+    } catch (err) {
+      toast("Erro ao enviar áudio: " + err.message, "error");
+      if (statusEl) statusEl.textContent = "Erro no upload";
+      if (label) label.style.opacity = "1";
+    }
+  });
+
+  if ($("sett-clear-audio")) {
+    $("sett-clear-audio").addEventListener("click", async () => {
+      await saveDispatchSetting("followup_audio_url", "");
+      renderDispatchSettings();
+      toast("Áudio removido.", "success");
+    });
+  }
+}
+
+async function uploadAudio(file) {
+  const ext = (file.name.split(".").pop() || "mp3").toLowerCase();
+  const path = `followup-audio.${ext}`;
+  const { error } = await supabase.storage
+    .from("webinar-audio")
+    .upload(path, file, { upsert: true, contentType: file.type });
+  if (error) throw new Error(error.message);
+  const { data } = supabase.storage.from("webinar-audio").getPublicUrl(path);
+  return data.publicUrl;
+}
+
+function updateSettingsPanel() {
+  if ($("sett-auto-pre")) $("sett-auto-pre").checked = dispatchSettings.auto_pre_enabled !== "false";
+  if ($("sett-auto-pos")) $("sett-auto-pos").checked = dispatchSettings.auto_pos_enabled !== "false";
+  // Se o painel de áudio precisar ser atualizado, re-renderiza (ocorre apenas no carregamento inicial)
+  const audioUrl = dispatchSettings.followup_audio_url || "";
+  const statusEl = $("sett-upload-status");
+  if (statusEl) statusEl.textContent = audioUrl ? "✓ Áudio configurado" : "Nenhum arquivo enviado";
+  updatePauseBtn();
+}
+
+function updatePauseBtn() {
+  const btn = $("sett-pause-all");
+  if (!btn) return;
+  const allPaused = dispatchSettings.auto_pre_enabled === "false" && dispatchSettings.auto_pos_enabled === "false";
+  btn.textContent = allPaused ? "▶ Retomar Tudo" : "⏸ Pausar Tudo";
+  btn.className = `btn btn--sm ${allPaused ? "btn--primary" : "btn--danger"}`;
 }
 
 // ---------- Carregar ----------
@@ -893,6 +1047,8 @@ async function regenerateGroup(groupId, template) {
 let allSchedules = [];
 let leadsCache = [];
 let remMap = {}; // mapa global: lead_id → { pre: bool, pos: bool }
+let dispatchSettings = {};
+let settingsPanelReady = false;
 
 async function populateLeadsFilter() {
   const { data } = await supabase
@@ -1105,7 +1261,8 @@ async function loadLeads() {
       <td>
         <div class="row" style="gap:.4rem;flex-wrap:nowrap;">
           <button class="btn btn--sm btn--ghost lead-remind-btn" data-id="${lead.id}" title="Enviar lembrete manual">📱</button>
-          <button class="btn btn--sm btn--ghost lead-followup-btn" data-id="${lead.id}" title="Enviar follow-up manual">💬</button>
+          <button class="btn btn--sm btn--ghost lead-followup-btn" data-id="${lead.id}" title="Enviar follow-up em texto">💬</button>
+          <button class="btn btn--sm btn--ghost lead-audio-btn" data-id="${lead.id}" title="${dispatchSettings.followup_audio_url ? 'Enviar follow-up em áudio' : 'Configure a URL do áudio nas configurações'}">🎙️</button>
           <button class="btn btn--sm btn--danger lead-delete-btn" data-id="${lead.id}" title="Remover lead">×</button>
         </div>
       </td>
@@ -1202,6 +1359,50 @@ async function sendLeadFollowup(lead, btn) {
     toast(`Erro ao enviar: ${e.message}`, "error");
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = "💬"; }
+  }
+}
+
+async function sendLeadAudio(lead, btn) {
+  const audioUrl = dispatchSettings.followup_audio_url;
+  if (!audioUrl) {
+    toast("Faça o upload do áudio nas configurações de disparo antes de usar este botão.", "error");
+    return;
+  }
+  if (phoneAlreadySent(lead.phone, "pos")) {
+    if (!confirm(`${lead.name} já recebeu follow-up anterior. Enviar áudio mesmo assim?`)) return;
+  }
+
+  const digits = lead.phone.replace(/\D/g, "");
+  const to = (digits.startsWith("55") ? digits : "55" + digits) + "@c.us";
+  const ext = audioUrl.split(".").pop().split("?")[0].toLowerCase();
+  const mimeType = ext === "ogg" ? "audio/ogg; codecs=opus"
+    : ext === "mp3" ? "audio/mpeg"
+    : ext === "wav" ? "audio/wav"
+    : "audio/mp4";
+
+  const MEGA_MEDIA_URL = "https://apinocode01.megaapi.com.br/rest/sendMessage/megacode-M6hpeUt7tF1/mediaUrl";
+  const MEGA_TOKEN = "M6hpeUt7tF1";
+
+  if (btn) { btn.disabled = true; btn.textContent = "..."; }
+  try {
+    const res = await fetch(MEGA_MEDIA_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${MEGA_TOKEN}` },
+      body: JSON.stringify({ messageData: {
+        to,
+        url: audioUrl,
+        fileName: `audio.${ext}`,
+        type: "ptt",      // nota de voz — abre automático no WhatsApp
+        mimeType,
+        caption: "",
+      } }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    toast(`Áudio enviado para ${lead.name}!`, "success");
+  } catch (e) {
+    toast(`Erro ao enviar áudio: ${e.message}`, "error");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "🎙️"; }
   }
 }
 

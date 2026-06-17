@@ -60,6 +60,21 @@ function isAuthorized(req) {
 module.exports = async function handler(req, res) {
   if (!isAuthorized(req)) return res.status(401).json({ error: "unauthorized" });
 
+  // Verifica configurações de disparo (respeita pausas do painel admin)
+  let autoPreEnabled = true;
+  let autoPosEnabled = true;
+  try {
+    const settings = await sbRpc("get_dispatch_settings", {});
+    for (const s of settings) {
+      if (s.key === "auto_pre_enabled") autoPreEnabled = s.value !== "false";
+      if (s.key === "auto_pos_enabled") autoPosEnabled = s.value !== "false";
+    }
+  } catch {} // Se falhar, mantém padrão (ativado)
+
+  if (!autoPreEnabled && !autoPosEnabled) {
+    return res.status(200).json({ ok: true, paused: "all", time: new Date().toISOString() });
+  }
+
   const nowMs  = Date.now();
   const preMin = new Date(nowMs + 15 * 60 * 1000).toISOString();
   const preMax = new Date(nowMs + 20 * 60 * 1000).toISOString();
@@ -84,6 +99,16 @@ module.exports = async function handler(req, res) {
     if (sent >= BATCH_SIZE) break;
 
     const type = lead.reminder_type;
+
+    // Pula se o tipo estiver desativado nas configurações do painel
+    if (type === "pre" && !autoPreEnabled) {
+      results.log.push({ name: lead.name, type, skip: "pre_disabled" });
+      continue;
+    }
+    if (type === "pos" && !autoPosEnabled) {
+      results.log.push({ name: lead.name, type, skip: "pos_disabled" });
+      continue;
+    }
 
     // Grava o log ANTES de enviar (atômico via ON CONFLICT DO NOTHING).
     // Se retornar false, outra invocação já enviou — pula.
