@@ -82,17 +82,17 @@ module.exports = async function handler(req, res) {
   if (!isAuthorized(req)) return res.status(401).json({ error: "unauthorized" });
 
   // Verifica configurações de disparo (respeita pausas e modo do painel admin)
-  let autoPreEnabled   = true;
-  let autoPosEnabled   = true;
-  let dispatchMode     = "text_all"; // "text_all" | "audio_pre_text_pos"
-  let reminderAudioUrl = "";
+  let autoPreEnabled    = true;
+  let autoPosEnabled    = true;
+  let dispatchMode      = "text_all"; // "text_all" | "text_pre_audio_pos"
+  let followupAudioUrl  = "";
   try {
     const settings = await sbRpc("get_dispatch_settings", {});
     for (const s of settings) {
-      if (s.key === "auto_pre_enabled")   autoPreEnabled   = s.value !== "false";
-      if (s.key === "auto_pos_enabled")   autoPosEnabled   = s.value !== "false";
-      if (s.key === "dispatch_mode")      dispatchMode     = s.value;
-      if (s.key === "reminder_audio_url") reminderAudioUrl = s.value;
+      if (s.key === "auto_pre_enabled")    autoPreEnabled   = s.value !== "false";
+      if (s.key === "auto_pos_enabled")    autoPosEnabled   = s.value !== "false";
+      if (s.key === "dispatch_mode")       dispatchMode     = s.value;
+      if (s.key === "followup_audio_url")  followupAudioUrl = s.value;
     }
   } catch {} // Se falhar, mantém padrão (ativado, modo texto)
 
@@ -157,10 +157,10 @@ module.exports = async function handler(req, res) {
       ? `🌸 Oi, ${lead.name}! Tudo bem?\n\nSua aula do *Projeto Topos Lucrativos* começa em breve! 💖\n\nJá pode clicar no link abaixo para entrar na transmissão:\n\n👉 ${watchUrl}\n\nTe esperamos lá! ✨`
       : `🌸 Oi, ${lead.name}! Tudo bem?\n\nQueria saber se você conseguiu assistir à nossa aula do *Projeto Topos Lucrativos* hoje! 💖\n\nConseguiu assistir certinho? Me conta! 😊`;
 
-    // Modo "audio_pre_text_pos": lembrete pré-aula vai como nota de voz
-    const useAudio = type === "pre" && dispatchMode === "audio_pre_text_pos" && reminderAudioUrl;
+    // Modo "text_pre_audio_pos": follow-up pós-aula vai como nota de voz
+    const useAudio = type === "pos" && dispatchMode === "text_pre_audio_pos" && followupAudioUrl;
     const { ok, status, error: sendErr } = useAudio
-      ? await sendWhatsAppAudio(lead.phone, reminderAudioUrl)
+      ? await sendWhatsAppAudio(lead.phone, followupAudioUrl)
       : await sendWhatsApp(lead.phone, text);
 
     if (ok) {

@@ -151,8 +151,8 @@ function audioBlock(settKey, fileId, clearId, statusId, label) {
 function renderDispatchSettings() {
   const panel = $("leads-settings-panel");
   if (!panel) return;
-  const mode    = dispatchSettings.dispatch_mode || "text_all";
-  const paused  = dispatchSettings.auto_pre_enabled === "false" && dispatchSettings.auto_pos_enabled === "false";
+  const mode   = dispatchSettings.dispatch_mode || "text_all";
+  const paused = dispatchSettings.auto_pre_enabled === "false" && dispatchSettings.auto_pos_enabled === "false";
 
   panel.innerHTML = `
     <div class="disp-settings-panel" style="gap:.9rem 2rem;">
@@ -160,29 +160,28 @@ function renderDispatchSettings() {
         <div class="section-label">⚙️ Modo de envio automático</div>
         <div class="row" style="gap:.4rem;margin-bottom:.5rem;flex-wrap:wrap;">
           <button id="mode-text-all" class="btn btn--sm ${mode === "text_all" ? "btn--primary" : "btn--ghost"}" style="font-size:.82rem;">
-            📝 Texto tudo
+            📝 Tudo em texto
           </button>
-          <button id="mode-audio-pre" class="btn btn--sm ${mode === "audio_pre_text_pos" ? "btn--primary" : "btn--ghost"}" style="font-size:.82rem;">
-            🎙️ Áudio lembrete + texto follow-up
+          <button id="mode-audio-pos" class="btn btn--sm ${mode === "text_pre_audio_pos" ? "btn--primary" : "btn--ghost"}" style="font-size:.82rem;">
+            📝🎙️ Lembrete texto + follow-up áudio
           </button>
         </div>
         <button id="sett-pause-all" class="btn btn--sm ${paused ? "" : "btn--danger"}" style="font-size:.78rem;">
           ${paused ? "▶ Retomar Tudo" : "⏸ Pausar Tudo"}
         </button>
       </div>
-      ${mode === "audio_pre_text_pos" ? audioBlock("reminder_audio_url", "sett-rem-file", "sett-clear-rem", "sett-rem-status", "📢 Áudio do lembrete pré-aula") : ""}
-      ${audioBlock("followup_audio_url", "sett-fup-file", "sett-clear-fup", "sett-fup-status", "🎙️ Áudio do follow-up (botão manual)")}
+      ${audioBlock("followup_audio_url", "sett-fup-file", "sett-clear-fup", "sett-fup-status", "🎙️ Áudio do follow-up pós-aula")}
     </div>`;
 
   $("mode-text-all").addEventListener("click", async () => {
     await saveDispatchSetting("dispatch_mode", "text_all");
     renderDispatchSettings();
-    toast("Modo: texto tudo.", "success");
+    toast("Modo: tudo em texto.", "success");
   });
-  $("mode-audio-pre").addEventListener("click", async () => {
-    await saveDispatchSetting("dispatch_mode", "audio_pre_text_pos");
+  $("mode-audio-pos").addEventListener("click", async () => {
+    await saveDispatchSetting("dispatch_mode", "text_pre_audio_pos");
     renderDispatchSettings();
-    toast("Modo: áudio lembrete + texto follow-up.", "success");
+    toast("Modo: lembrete texto + follow-up áudio.", "success");
   });
   $("sett-pause-all").addEventListener("click", async () => {
     const nowPaused = dispatchSettings.auto_pre_enabled === "false" && dispatchSettings.auto_pos_enabled === "false";
@@ -193,9 +192,6 @@ function renderDispatchSettings() {
   });
 
   bindAudioUpload("sett-fup-file", "sett-fup-status", "sett-clear-fup", "followup_audio_url");
-  if (mode === "audio_pre_text_pos") {
-    bindAudioUpload("sett-rem-file", "sett-rem-status", "sett-clear-rem", "reminder_audio_url");
-  }
 }
 
 function bindAudioUpload(fileId, statusId, clearId, settKey) {
