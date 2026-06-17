@@ -1,5 +1,6 @@
-const MEGA_URL   = "https://apinocode01.megaapi.com.br/rest/sendMessage/megacode-M6hpeUt7tF1/text";
-const MEGA_TOKEN = "M6hpeUt7tF1";
+const MEGA_URL       = "https://apinocode01.megaapi.com.br/rest/sendMessage/megacode-M6hpeUt7tF1/text";
+const MEGA_MEDIA_URL = "https://apinocode01.megaapi.com.br/rest/sendMessage/megacode-M6hpeUt7tF1/mediaUrl";
+const MEGA_TOKEN     = "M6hpeUt7tF1";
 const BATCH_SIZE = 8;
 const DELAY_MS   = 700;
 
@@ -50,6 +51,26 @@ async function sendWhatsApp(phone, text) {
   }
 }
 
+async function sendWhatsAppAudio(phone, audioUrl) {
+  const digits = phone.replace(/\D/g, "");
+  const to = (digits.startsWith("55") ? digits : "55" + digits) + "@c.us";
+  const ext = audioUrl.split(".").pop().split("?")[0].toLowerCase();
+  const mimeType = ext === "ogg" ? "audio/ogg; codecs=opus"
+    : ext === "mp3" ? "audio/mpeg"
+    : ext === "wav" ? "audio/wav"
+    : "audio/mp4";
+  try {
+    const res = await fetch(MEGA_MEDIA_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${MEGA_TOKEN}` },
+      body: JSON.stringify({ messageData: { to, url: audioUrl, fileName: `audio.${ext}`, type: "ptt", mimeType, caption: "" } }),
+    });
+    return { ok: res.ok, status: res.status };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
 function isAuthorized(req) {
   const { DISPATCH_SECRET, CRON_SECRET } = process.env;
   if (CRON_SECRET && req.headers["authorization"] === `Bearer ${CRON_SECRET}`) return true;
@@ -60,16 +81,20 @@ function isAuthorized(req) {
 module.exports = async function handler(req, res) {
   if (!isAuthorized(req)) return res.status(401).json({ error: "unauthorized" });
 
-  // Verifica configurações de disparo (respeita pausas do painel admin)
-  let autoPreEnabled = true;
-  let autoPosEnabled = true;
+  // Verifica configurações de disparo (respeita pausas e modo do painel admin)
+  let autoPreEnabled   = true;
+  let autoPosEnabled   = true;
+  let dispatchMode     = "text_all"; // "text_all" | "audio_pre_text_pos"
+  let reminderAudioUrl = "";
   try {
     const settings = await sbRpc("get_dispatch_settings", {});
     for (const s of settings) {
-      if (s.key === "auto_pre_enabled") autoPreEnabled = s.value !== "false";
-      if (s.key === "auto_pos_enabled") autoPosEnabled = s.value !== "false";
+      if (s.key === "auto_pre_enabled")   autoPreEnabled   = s.value !== "false";
+      if (s.key === "auto_pos_enabled")   autoPosEnabled   = s.value !== "false";
+      if (s.key === "dispatch_mode")      dispatchMode     = s.value;
+      if (s.key === "reminder_audio_url") reminderAudioUrl = s.value;
     }
-  } catch {} // Se falhar, mantém padrão (ativado)
+  } catch {} // Se falhar, mantém padrão (ativado, modo texto)
 
   if (!autoPreEnabled && !autoPosEnabled) {
     return res.status(200).json({ ok: true, paused: "all", time: new Date().toISOString() });
@@ -127,12 +152,16 @@ module.exports = async function handler(req, res) {
     }
 
     // Envia WhatsApp somente após garantir o claim no banco
-    const url  = buildWatchUrl(lead.webinar_slug, lead);
+    const watchUrl = buildWatchUrl(lead.webinar_slug, lead);
     const text = type === "pre"
-      ? `🌸 Oi, ${lead.name}! Tudo bem?\n\nSua aula do *Projeto Topos Lucrativos* começa em breve! 💖\n\nJá pode clicar no link abaixo para entrar na transmissão:\n\n👉 ${url}\n\nTe esperamos lá! ✨`
+      ? `🌸 Oi, ${lead.name}! Tudo bem?\n\nSua aula do *Projeto Topos Lucrativos* começa em breve! 💖\n\nJá pode clicar no link abaixo para entrar na transmissão:\n\n👉 ${watchUrl}\n\nTe esperamos lá! ✨`
       : `🌸 Oi, ${lead.name}! Tudo bem?\n\nQueria saber se você conseguiu assistir à nossa aula do *Projeto Topos Lucrativos* hoje! 💖\n\nConseguiu assistir certinho? Me conta! 😊`;
 
-    const { ok, status, error: sendErr } = await sendWhatsApp(lead.phone, text);
+    // Modo "audio_pre_text_pos": lembrete pré-aula vai como nota de voz
+    const useAudio = type === "pre" && dispatchMode === "audio_pre_text_pos" && reminderAudioUrl;
+    const { ok, status, error: sendErr } = useAudio
+      ? await sendWhatsAppAudio(lead.phone, reminderAudioUrl)
+      : await sendWhatsApp(lead.phone, text);
 
     if (ok) {
       results[type]++;

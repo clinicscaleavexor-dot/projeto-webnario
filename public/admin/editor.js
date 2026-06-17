@@ -129,102 +129,108 @@ async function saveDispatchSetting(key, value) {
   }
 }
 
+function audioBlock(settKey, fileId, clearId, statusId, label) {
+  const url = dispatchSettings[settKey] || "";
+  return `
+    <div>
+      <div class="section-label" style="margin-bottom:.4rem;">${label}</div>
+      <div class="row" style="gap:.4rem;flex-wrap:wrap;align-items:center;">
+        <label class="btn btn--sm" style="cursor:pointer;display:inline-flex;align-items:center;gap:.3rem;">
+          📂 Upload
+          <input type="file" id="${fileId}" accept="audio/*,.ogg,.mp3,.wav,.m4a,.aac" style="display:none;">
+        </label>
+        <span id="${statusId}" style="font-size:.8rem;color:var(--text-dim);">${url ? "✓ Configurado" : "Sem arquivo"}</span>
+      </div>
+      ${url ? `
+        <audio controls src="${escapeHtml(url)}" style="height:32px;width:100%;max-width:300px;margin-top:.35rem;display:block;"></audio>
+        <button id="${clearId}" class="btn btn--sm" style="margin-top:.3rem;font-size:.75rem;">✕ Remover</button>
+      ` : ""}
+    </div>`;
+}
+
 function renderDispatchSettings() {
   const panel = $("leads-settings-panel");
   if (!panel) return;
-  const preOn = dispatchSettings.auto_pre_enabled !== "false";
-  const posOn = dispatchSettings.auto_pos_enabled !== "false";
-  const audioUrl = dispatchSettings.followup_audio_url || "";
+  const mode    = dispatchSettings.dispatch_mode || "text_all";
+  const paused  = dispatchSettings.auto_pre_enabled === "false" && dispatchSettings.auto_pos_enabled === "false";
+
   panel.innerHTML = `
-    <div class="disp-settings-panel">
+    <div class="disp-settings-panel" style="gap:.9rem 2rem;">
       <div>
-        <div class="section-label">⚙️ Disparos automáticos</div>
-        <label class="disp-toggle" title="Lembrete via cron 20 min antes da aula">
-          <input type="checkbox" id="sett-auto-pre" ${preOn ? "checked" : ""}>
-          <span class="disp-track"></span>
-          <span class="disp-label">💬 Lembrete pré-aula</span>
-        </label>
-        <label class="disp-toggle" title="Follow-up texto via cron 75 min após a aula">
-          <input type="checkbox" id="sett-auto-pos" ${posOn ? "checked" : ""}>
-          <span class="disp-track"></span>
-          <span class="disp-label">✅ Follow-up em texto</span>
-        </label>
-        <button id="sett-pause-all" class="btn btn--sm ${!preOn && !posOn ? "btn--primary" : "btn--danger"}" style="margin-top:.3rem;font-size:.78rem;">
-          ${!preOn && !posOn ? "▶ Retomar Tudo" : "⏸ Pausar Tudo"}
+        <div class="section-label">⚙️ Modo de envio automático</div>
+        <div class="row" style="gap:.4rem;margin-bottom:.5rem;flex-wrap:wrap;">
+          <button id="mode-text-all" class="btn btn--sm ${mode === "text_all" ? "btn--primary" : "btn--ghost"}" style="font-size:.82rem;">
+            📝 Texto tudo
+          </button>
+          <button id="mode-audio-pre" class="btn btn--sm ${mode === "audio_pre_text_pos" ? "btn--primary" : "btn--ghost"}" style="font-size:.82rem;">
+            🎙️ Áudio lembrete + texto follow-up
+          </button>
+        </div>
+        <button id="sett-pause-all" class="btn btn--sm ${paused ? "" : "btn--danger"}" style="font-size:.78rem;">
+          ${paused ? "▶ Retomar Tudo" : "⏸ Pausar Tudo"}
         </button>
       </div>
-      <div>
-        <div class="section-label">🎙️ Áudio de follow-up</div>
-        <div class="row" style="gap:.5rem;flex-wrap:wrap;align-items:center;">
-          <label class="btn btn--sm" style="cursor:pointer;display:inline-flex;align-items:center;gap:.35rem;" title="Selecione MP3, OGG ou WAV — será enviado como nota de voz no WhatsApp">
-            📂 Enviar arquivo de áudio
-            <input type="file" id="sett-audio-file" accept="audio/*,.ogg,.mp3,.wav,.m4a,.aac" style="display:none;">
-          </label>
-          <span id="sett-upload-status" style="font-size:.8rem;color:var(--text-dim);">
-            ${audioUrl ? "✓ Áudio configurado" : "Nenhum arquivo enviado"}
-          </span>
-        </div>
-        ${audioUrl ? `
-          <audio controls src="${escapeHtml(audioUrl)}" style="height:34px;width:100%;max-width:320px;margin-top:.4rem;display:block;"></audio>
-          <button class="btn btn--sm" id="sett-clear-audio" style="margin-top:.35rem;font-size:.76rem;">✕ Remover áudio</button>
-        ` : ""}
-      </div>
+      ${mode === "audio_pre_text_pos" ? audioBlock("reminder_audio_url", "sett-rem-file", "sett-clear-rem", "sett-rem-status", "📢 Áudio do lembrete pré-aula") : ""}
+      ${audioBlock("followup_audio_url", "sett-fup-file", "sett-clear-fup", "sett-fup-status", "🎙️ Áudio do follow-up (botão manual)")}
     </div>`;
 
-  $("sett-auto-pre").addEventListener("change", async (e) => {
-    await saveDispatchSetting("auto_pre_enabled", e.target.checked ? "true" : "false");
-    updatePauseBtn();
-    toast(e.target.checked ? "Lembrete automático ativado." : "Lembrete automático pausado.", e.target.checked ? "success" : "error");
+  $("mode-text-all").addEventListener("click", async () => {
+    await saveDispatchSetting("dispatch_mode", "text_all");
+    renderDispatchSettings();
+    toast("Modo: texto tudo.", "success");
   });
-  $("sett-auto-pos").addEventListener("change", async (e) => {
-    await saveDispatchSetting("auto_pos_enabled", e.target.checked ? "true" : "false");
-    updatePauseBtn();
-    toast(e.target.checked ? "Follow-up automático ativado." : "Follow-up automático pausado.", e.target.checked ? "success" : "error");
+  $("mode-audio-pre").addEventListener("click", async () => {
+    await saveDispatchSetting("dispatch_mode", "audio_pre_text_pos");
+    renderDispatchSettings();
+    toast("Modo: áudio lembrete + texto follow-up.", "success");
   });
   $("sett-pause-all").addEventListener("click", async () => {
-    const allPaused = dispatchSettings.auto_pre_enabled === "false" && dispatchSettings.auto_pos_enabled === "false";
-    const newVal = allPaused ? "true" : "false";
-    await Promise.all([
-      saveDispatchSetting("auto_pre_enabled", newVal),
-      saveDispatchSetting("auto_pos_enabled", newVal),
-    ]);
-    if ($("sett-auto-pre")) $("sett-auto-pre").checked = newVal === "true";
-    if ($("sett-auto-pos")) $("sett-auto-pos").checked = newVal === "true";
-    updatePauseBtn();
-    toast(allPaused ? "Disparos automáticos retomados." : "Todos os disparos automáticos pausados.", allPaused ? "success" : "error");
+    const nowPaused = dispatchSettings.auto_pre_enabled === "false" && dispatchSettings.auto_pos_enabled === "false";
+    const val = nowPaused ? "true" : "false";
+    await Promise.all([saveDispatchSetting("auto_pre_enabled", val), saveDispatchSetting("auto_pos_enabled", val)]);
+    renderDispatchSettings();
+    toast(nowPaused ? "Disparos retomados." : "Disparos pausados.", nowPaused ? "success" : "error");
   });
 
-  $("sett-audio-file").addEventListener("change", async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const label = e.target.closest("label");
-    const statusEl = $("sett-upload-status");
-    if (label) label.style.opacity = ".6";
-    if (statusEl) statusEl.textContent = "Enviando...";
-    try {
-      const url = await uploadAudio(file);
-      await saveDispatchSetting("followup_audio_url", url);
-      toast("Áudio enviado! Botão 🎙️ agora está ativo nos leads.", "success");
-      renderDispatchSettings();
-    } catch (err) {
-      toast("Erro ao enviar áudio: " + err.message, "error");
-      if (statusEl) statusEl.textContent = "Erro no upload";
-      if (label) label.style.opacity = "1";
-    }
-  });
+  bindAudioUpload("sett-fup-file", "sett-fup-status", "sett-clear-fup", "followup_audio_url");
+  if (mode === "audio_pre_text_pos") {
+    bindAudioUpload("sett-rem-file", "sett-rem-status", "sett-clear-rem", "reminder_audio_url");
+  }
+}
 
-  if ($("sett-clear-audio")) {
-    $("sett-clear-audio").addEventListener("click", async () => {
-      await saveDispatchSetting("followup_audio_url", "");
+function bindAudioUpload(fileId, statusId, clearId, settKey) {
+  const fileEl  = $(fileId);
+  const clearEl = $(clearId);
+  if (fileEl) {
+    fileEl.addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const statusEl = $(statusId);
+      if (statusEl) statusEl.textContent = "Enviando...";
+      try {
+        const url = await uploadAudio(file, settKey);
+        await saveDispatchSetting(settKey, url);
+        toast("Áudio salvo!", "success");
+        renderDispatchSettings();
+      } catch (err) {
+        toast("Erro no upload: " + err.message, "error");
+        if ($(statusId)) $(statusId).textContent = "Erro";
+      }
+    });
+  }
+  if (clearEl) {
+    clearEl.addEventListener("click", async () => {
+      await saveDispatchSetting(settKey, "");
       renderDispatchSettings();
       toast("Áudio removido.", "success");
     });
   }
 }
 
-async function uploadAudio(file) {
-  const ext = (file.name.split(".").pop() || "mp3").toLowerCase();
-  const path = `followup-audio.${ext}`;
+async function uploadAudio(file, settKey = "followup_audio_url") {
+  const ext  = (file.name.split(".").pop() || "mp3").toLowerCase();
+  const name = settKey === "reminder_audio_url" ? "reminder-audio" : "followup-audio";
+  const path = `${name}.${ext}`;
   const { error } = await supabase.storage
     .from("webinar-audio")
     .upload(path, file, { upsert: true, contentType: file.type });
@@ -234,21 +240,17 @@ async function uploadAudio(file) {
 }
 
 function updateSettingsPanel() {
-  if ($("sett-auto-pre")) $("sett-auto-pre").checked = dispatchSettings.auto_pre_enabled !== "false";
-  if ($("sett-auto-pos")) $("sett-auto-pos").checked = dispatchSettings.auto_pos_enabled !== "false";
-  // Se o painel de áudio precisar ser atualizado, re-renderiza (ocorre apenas no carregamento inicial)
-  const audioUrl = dispatchSettings.followup_audio_url || "";
-  const statusEl = $("sett-upload-status");
-  if (statusEl) statusEl.textContent = audioUrl ? "✓ Áudio configurado" : "Nenhum arquivo enviado";
-  updatePauseBtn();
+  // Após carregar settings do Supabase, re-renderiza o painel completo
+  // para refletir o modo e URLs corretas (ocorre apenas na inicialização)
+  renderDispatchSettings();
 }
 
 function updatePauseBtn() {
   const btn = $("sett-pause-all");
   if (!btn) return;
-  const allPaused = dispatchSettings.auto_pre_enabled === "false" && dispatchSettings.auto_pos_enabled === "false";
-  btn.textContent = allPaused ? "▶ Retomar Tudo" : "⏸ Pausar Tudo";
-  btn.className = `btn btn--sm ${allPaused ? "btn--primary" : "btn--danger"}`;
+  const paused = dispatchSettings.auto_pre_enabled === "false" && dispatchSettings.auto_pos_enabled === "false";
+  btn.textContent = paused ? "▶ Retomar Tudo" : "⏸ Pausar Tudo";
+  btn.className   = `btn btn--sm ${paused ? "" : "btn--danger"}`;
 }
 
 // ---------- Carregar ----------
