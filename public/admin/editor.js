@@ -42,6 +42,9 @@ const $ = (id) => document.getElementById(id);
   $("leads-reminder-filter").addEventListener("change", () => loadLeads());
   $("leads-unify").addEventListener("change", () => loadLeads());
   $("leads-export").addEventListener("click", exportLeadsCsv);
+  $("new-sched-msg-btn").addEventListener("click", openSchedForm);
+  $("sched-cancel-btn").addEventListener("click", closeSchedForm);
+  $("sched-save-btn").addEventListener("click", saveScheduledMessage);
   $("leads-list").addEventListener("click", (e) => {
     const phoneEl = e.target.closest(".lead-phone-copy");
     if (phoneEl) {
@@ -107,9 +110,10 @@ function openLeadsTab() {
   if (!settingsPanelReady) {
     settingsPanelReady = true;
     renderDispatchSettings();
-    loadDispatchSettings(); // async: atualiza valores quando retornar
+    loadDispatchSettings();
   }
   loadLeads();
+  loadScheduledMessages();
 }
 
 async function loadDispatchSettings() {
@@ -1402,6 +1406,125 @@ async function sendLeadAudio(lead, btn) {
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = "🎙️"; }
   }
+}
+
+// =====================================================================
+//  MENSAGENS AGENDADAS
+// =====================================================================
+function openSchedForm() {
+  const form = $("sched-msg-form");
+  form.classList.remove("hidden");
+  $("new-sched-msg-btn").classList.add("hidden");
+  // Preenche data/hora com +1h a partir de agora (BRT)
+  const now = new Date(Date.now() + 60 * 60 * 1000);
+  const pad = (n) => String(n).padStart(2, "0");
+  $("sched-datetime").value = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+}
+
+function closeSchedForm() {
+  $("sched-msg-form").classList.add("hidden");
+  $("new-sched-msg-btn").classList.remove("hidden");
+  $("sched-phone").value = "";
+  $("sched-name").value = "";
+  $("sched-message").value = "";
+}
+
+async function saveScheduledMessage() {
+  const phone   = $("sched-phone").value.trim();
+  const name    = $("sched-name").value.trim();
+  const message = $("sched-message").value.trim();
+  const dtVal   = $("sched-datetime").value;
+
+  if (!phone)   return toast("Informe o telefone.", "error");
+  if (!message) return toast("Informe a mensagem.", "error");
+  if (!dtVal)   return toast("Informe a data e hora.", "error");
+
+  const scheduledFor = localInputToISO(dtVal);
+  if (new Date(scheduledFor) <= new Date()) return toast("A data deve ser no futuro.", "error");
+
+  const btn = $("sched-save-btn");
+  btn.disabled = true; btn.textContent = "Agendando...";
+
+  const { error } = await supabase.from("scheduled_messages").insert({
+    webinar_id: WID, phone, name, message, scheduled_for: scheduledFor,
+  });
+  btn.disabled = false; btn.textContent = "Agendar envio";
+
+  if (error) return toast("Erro ao agendar: " + error.message, "error");
+  toast("Mensagem agendada!", "success");
+  closeSchedForm();
+  loadScheduledMessages();
+}
+
+async function loadScheduledMessages() {
+  const { data } = await supabase
+    .from("scheduled_messages")
+    .select("*")
+    .eq("webinar_id", WID)
+    .order("scheduled_for", { ascending: false })
+    .limit(50);
+  renderScheduledMessages(data || []);
+}
+
+function renderScheduledMessages(list) {
+  const host = $("sched-msg-list");
+  if (!list.length) {
+    host.innerHTML = `<div class="empty muted" style="font-size:.85rem;">Nenhuma mensagem agendada.</div>`;
+    return;
+  }
+
+  const statusLabel = { pending: "🕐 Pendente", sent: "✅ Enviado", failed: "❌ Falhou", cancelled: "🚫 Cancelado" };
+  const statusColor = { pending: "#f59e0b", sent: "var(--green)", failed: "#ef4444", cancelled: "var(--text-dim)" };
+
+  host.innerHTML = `
+    <div class="leads-table-wrap" style="margin-top:.6rem;">
+      <table class="leads-table">
+        <thead>
+          <tr>
+            <th>Destinatário</th>
+            <th>Mensagem</th>
+            <th>Agendado para</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${list.map(m => {
+            const dt = new Date(m.scheduled_for).toLocaleString("pt-BR", { day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit" });
+            const preview = m.message.length > 70 ? m.message.slice(0, 70) + "…" : m.message;
+            const color = statusColor[m.status] || "var(--text-dim)";
+            const label = statusLabel[m.status] || m.status;
+            const cancelBtn = m.status === "pending"
+              ? `<button class="btn btn--sm btn--danger sched-cancel-msg" data-id="${m.id}" style="font-size:.75rem;">Cancelar</button>`
+              : "";
+            return `<tr>
+              <td>
+                <div style="font-weight:600;font-size:.88rem;">${escapeHtml(m.name || "—")}</div>
+                <div class="lead-phone-copy muted" data-phone="${escapeHtml(m.phone)}" style="font-size:.8rem;">${escapeHtml(m.phone)}</div>
+              </td>
+              <td style="max-width:260px;color:var(--text-dim);font-size:.83rem;">${escapeHtml(preview)}</td>
+              <td style="font-size:.84rem;white-space:nowrap;">${dt}</td>
+              <td style="font-size:.82rem;font-weight:600;color:${color};white-space:nowrap;">${label}</td>
+              <td>${cancelBtn}</td>
+            </tr>`;
+          }).join("")}
+        </tbody>
+      </table>
+    </div>`;
+
+  host.querySelectorAll(".sched-cancel-msg").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Cancelar este agendamento?")) return;
+      btn.disabled = true;
+      const { error } = await supabase
+        .from("scheduled_messages")
+        .update({ status: "cancelled" })
+        .eq("id", btn.dataset.id);
+      if (error) return toast("Erro: " + error.message, "error");
+      toast("Agendamento cancelado.", "success");
+      loadScheduledMessages();
+    });
+  });
 }
 
 async function deleteLead(leadId, btn) {

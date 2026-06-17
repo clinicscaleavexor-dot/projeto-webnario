@@ -175,6 +175,30 @@ module.exports = async function handler(req, res) {
     await sleep(DELAY_MS);
   }
 
+  // ── Mensagens agendadas ──────────────────────────────────────────
+  let schedSent = 0;
+  try {
+    const pendingMsgs = await sbRpc("get_pending_scheduled_messages", {});
+    for (const msg of pendingMsgs) {
+      if (sent + schedSent >= BATCH_SIZE) break;
+
+      let claimed = false;
+      try { claimed = await sbRpc("claim_scheduled_message", { p_id: msg.id }); } catch {}
+      if (!claimed) continue;
+
+      const { ok, status: httpStatus, error: sendErr } = await sendWhatsApp(msg.phone, msg.message);
+      if (ok) {
+        schedSent++;
+        results.log.push({ name: msg.name || msg.phone, type: "scheduled", sent: true });
+      } else {
+        results.errors++;
+        results.log.push({ name: msg.name || msg.phone, type: "scheduled", skip: "mega_error", error: sendErr });
+        try { await sbRpc("fail_scheduled_message", { p_id: msg.id, p_error: sendErr || `HTTP ${httpStatus}` }); } catch {}
+      }
+      await sleep(DELAY_MS);
+    }
+  } catch {}
+
   return res.status(200).json({
     ok: true,
     time: new Date().toISOString(),
@@ -182,6 +206,7 @@ module.exports = async function handler(req, res) {
     found: leads.length,
     pre_sent: results.pre,
     pos_sent: results.pos,
+    scheduled_sent: schedSent,
     errors: results.errors,
     log: results.log,
   });
