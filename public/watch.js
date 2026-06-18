@@ -21,6 +21,7 @@ let videoSynced = false;
 let isAdmin = false;
 let webinarId = null;
 let adminTimeShift = 0; // segundos de avanço para testes (somente admin)
+let startOffset = 0;   // segundos a pular no início (configurado no editor)
 
 // --- YouTube ---
 let isYouTube = false;
@@ -57,6 +58,7 @@ async function init() {
       : 0;
   }
   clockOffsetMs = new Date(pkgResult.server_now).getTime() - Date.now();
+  startOffset = webinar.settings?.video_start_offset || 0;
 
   $("loading").classList.add("hidden");
   $("app").classList.remove("hidden");
@@ -244,7 +246,7 @@ function showError() {
 function serverNow() { return Date.now() + clockOffsetMs; }
 function elapsedSeconds() {
   if (!scheduledMs) return 0;
-  return (serverNow() - scheduledMs) / 1000 + adminTimeShift;
+  return (serverNow() - scheduledMs) / 1000 + adminTimeShift + startOffset;
 }
 
 async function resync() {

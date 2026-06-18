@@ -65,6 +65,14 @@
           </div>
         </div>
 
+        <div class="field-row">
+          <div class="field" style="max-width:260px;">
+            <label>Iniciar vídeo em (opcional)</label>
+            <input id="video-start-offset" placeholder="MM:SS (ex: 1:15)" />
+            <small class="muted">O vídeo pula para esse ponto quando a live abre.</small>
+          </div>
+        </div>
+
         <div id="video-preview-wrap" class="hidden">
           <label>Pré-visualização</label>
           <video id="video-preview" controls preload="metadata" class="video-preview"></video>
@@ -330,14 +338,14 @@
                   <span style="font-size:.8rem;font-weight:600;">📺 Link da aula</span>
                   <button type="button" id="use-tmpl-link" class="btn btn--sm btn--ghost" style="font-size:.73rem;">Usar ↓</button>
                 </div>
-                <textarea id="tmpl-link-text" rows="4" style="width:100%;font-size:.79rem;resize:vertical;background:var(--surface,#fff);border:1px solid var(--border);border-radius:4px;padding:.4em .5em;color:var(--text);"></textarea>
+                <textarea id="tmpl-link-text" rows="4" style="width:100%;font-size:.79rem;resize:vertical;background:var(--bg-elev);border:1px solid var(--border);border-radius:4px;padding:.4em .5em;color:var(--text);"></textarea>
               </div>
               <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.6rem;">
                 <div class="row spread" style="margin-bottom:.3rem;">
                   <span style="font-size:.8rem;font-weight:600;">💬 Se assistiu</span>
                   <button type="button" id="use-tmpl-followup" class="btn btn--sm btn--ghost" style="font-size:.73rem;">Usar ↓</button>
                 </div>
-                <textarea id="tmpl-followup-text" rows="2" style="width:100%;font-size:.79rem;resize:vertical;background:var(--surface,#fff);border:1px solid var(--border);border-radius:4px;padding:.4em .5em;color:var(--text);"></textarea>
+                <textarea id="tmpl-followup-text" rows="2" style="width:100%;font-size:.79rem;resize:vertical;background:var(--bg-elev);border:1px solid var(--border);border-radius:4px;padding:.4em .5em;color:var(--text);"></textarea>
               </div>
             </div>
             <textarea id="sched-message" rows="4" placeholder="Escreva a mensagem ou use um template acima..." style="width:100%;resize:vertical;"></textarea>

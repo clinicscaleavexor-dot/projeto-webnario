@@ -284,6 +284,7 @@ async function loadWebinar() {
   $("v-jitter").value = v.jitter ?? 12;
   $("waiting-text").value = s.waiting_text || "";
   $("ended-text").value = s.ended_text || "";
+  $("video-start-offset").value = s.video_start_offset ? fmtClock(s.video_start_offset) : "";
   if (data.video_url) {
     showVideoPreview(data.video_url);
     // Auto-detecta duração do YouTube se ainda não estiver salva
@@ -329,6 +330,7 @@ async function saveCore() {
     },
     waiting_text: $("waiting-text").value.trim(),
     ended_text: $("ended-text").value.trim(),
+    video_start_offset: parseClock($("video-start-offset").value) || 0,
   };
 
   const patch = {
