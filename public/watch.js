@@ -162,12 +162,13 @@ function createYouTubePlayer(videoId) {
           e.target.setVolume(100);
         } else {
           e.target.mute();
+          // Sempre mostra o botão quando o player está pronto e mutado
+          $("unmute").classList.remove("hidden");
         }
         if (ytPendingSeek !== null) {
           e.target.seekTo(ytPendingSeek, true);
           e.target.playVideo();
           ytPendingSeek = null;
-          if (!unmuteRequested) $("unmute").classList.remove("hidden");
         }
       },
     },
