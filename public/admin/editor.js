@@ -279,9 +279,9 @@ async function loadWebinar() {
 
   const s = data.settings || {};
   const v = s.viewers || {};
-  $("v-base").value = v.base ?? 120;
-  $("v-peak").value = v.peak ?? 850;
-  $("v-jitter").value = v.jitter ?? 12;
+  $("v-base").value = v.base || 120;
+  $("v-peak").value = v.peak || 850;
+  $("v-jitter").value = v.jitter || 12;
   $("waiting-text").value = s.waiting_text || "";
   $("ended-text").value = s.ended_text || "";
   $("video-start-offset").value = s.video_start_offset ? fmtClock(s.video_start_offset) : "";
@@ -324,9 +324,9 @@ async function saveCore() {
   const settings = {
     ...(webinar.settings || {}),
     viewers: {
-      base: parseInt($("v-base").value, 10) || 0,
-      peak: parseInt($("v-peak").value, 10) || 0,
-      jitter: parseInt($("v-jitter").value, 10) || 0,
+      base: parseInt($("v-base").value, 10) || 120,
+      peak: parseInt($("v-peak").value, 10) || 850,
+      jitter: parseInt($("v-jitter").value, 10) || 12,
     },
     waiting_text: $("waiting-text").value.trim(),
     ended_text: $("ended-text").value.trim(),

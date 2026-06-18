@@ -81,15 +81,20 @@ async function init() {
     video.muted = true;
   }
 
-  // Unmute: funciona para MP4 e YouTube
-  $("unmute").addEventListener("click", () => {
+  // Unmute: botão dedicado e clique em qualquer lugar do player
+  function doUnmute() {
     if (isYouTube && ytPlayer) {
       ytPlayer.unMute();
+      ytPlayer.setVolume(100);
     } else {
       $("video").muted = false;
     }
     $("unmute").classList.add("hidden");
-  });
+  }
+  $("unmute").addEventListener("click", doUnmute);
+  document.querySelector(".player-wrap").addEventListener("click", (e) => {
+    if (!$("unmute").classList.contains("hidden")) doUnmute();
+  }, { once: true });
 
   renderBanners(0);
   if (isAdmin) { setupAdminChat(); setupAdminScrubber(); }
@@ -516,7 +521,8 @@ function renderBanners(elapsed) {
 
 // ---------- Espectadores ----------
 function updateViewers(elapsed) {
-  const v = webinar.settings?.viewers || { base: 100, peak: 600, jitter: 10 };
+  const raw = webinar.settings?.viewers || {};
+  const v = { base: raw.base || 100, peak: raw.peak || 600, jitter: raw.jitter || 10 };
   let count;
   if (mode === "waiting") {
     const warm = Math.max(0, 60 + elapsed);
