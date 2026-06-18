@@ -45,12 +45,17 @@
 .countdown { font-size: clamp(2rem, 7vw, 3.6rem); font-weight: 800; letter-spacing: .02em; margin: .5rem 0; font-variant-numeric: tabular-nums; }
 
 .unmute-btn {
-  position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%);
-  background: rgba(124,92,255,.95); color: #fff; border: 0; cursor: pointer;
-  padding: .7em 1.2em; border-radius: 999px; font: inherit; font-weight: 700; box-shadow: var(--shadow);
-  animation: bob 1.6s ease-in-out infinite;
+  position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%);
+  z-index: 100; pointer-events: auto;
+  background: rgba(0,0,0,.75); color: #fff; border: 2px solid rgba(255,255,255,.35); cursor: pointer;
+  padding: .8em 1.6em; border-radius: 999px; font: inherit; font-size: 1rem; font-weight: 700;
+  box-shadow: 0 4px 24px rgba(0,0,0,.5);
+  animation: bob 1.8s ease-in-out infinite;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
-@keyframes bob { 50% { transform: translateX(-50%) translateY(-4px); } }
+.unmute-btn:active { transform: translateX(-50%) scale(.96); }
+@keyframes bob { 0%,100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(-5px); } }
 
 /* CTA */
 .cta-bar { margin-top: 1rem; }

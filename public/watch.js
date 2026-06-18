@@ -22,6 +22,7 @@ let isAdmin = false;
 let webinarId = null;
 let adminTimeShift = 0; // segundos de avanço para testes (somente admin)
 let startOffset = 0;   // segundos a pular no início (configurado no editor)
+let unmuteRequested = false; // usuário clicou em desmutar antes do player estar pronto
 
 // --- YouTube ---
 let isYouTube = false;
@@ -81,20 +82,26 @@ async function init() {
     video.muted = true;
   }
 
-  // Unmute: botão dedicado e clique em qualquer lugar do player
-  function doUnmute() {
-    if (isYouTube && ytPlayer) {
-      ytPlayer.unMute();
-      ytPlayer.setVolume(100);
+  // Unmute — funciona em PC (click) e mobile iOS (touchstart)
+  const unmuteEl = $("unmute");
+  function doUnmute(e) {
+    if (e) { e.preventDefault(); e.stopPropagation(); }
+    if (isYouTube) {
+      if (ytPlayer && ytReady) {
+        ytPlayer.unMute();
+        ytPlayer.setVolume(100);
+      } else {
+        unmuteRequested = true; // aplica quando o player estiver pronto (onReady)
+      }
     } else {
-      $("video").muted = false;
+      const v = $("video");
+      v.muted = false;
+      v.volume = 1;
     }
-    $("unmute").classList.add("hidden");
+    unmuteEl.classList.add("hidden");
   }
-  $("unmute").addEventListener("click", doUnmute);
-  document.querySelector(".player-wrap").addEventListener("click", (e) => {
-    if (!$("unmute").classList.contains("hidden")) doUnmute();
-  }, { once: true });
+  unmuteEl.addEventListener("click", doUnmute);
+  unmuteEl.addEventListener("touchstart", doUnmute, { passive: false });
 
   renderBanners(0);
   if (isAdmin) { setupAdminChat(); setupAdminScrubber(); }
@@ -150,12 +157,17 @@ function createYouTubePlayer(videoId) {
     events: {
       onReady(e) {
         ytReady = true;
-        e.target.mute();
+        if (unmuteRequested) {
+          e.target.unMute();
+          e.target.setVolume(100);
+        } else {
+          e.target.mute();
+        }
         if (ytPendingSeek !== null) {
           e.target.seekTo(ytPendingSeek, true);
           e.target.playVideo();
           ytPendingSeek = null;
-          $("unmute").classList.remove("hidden");
+          if (!unmuteRequested) $("unmute").classList.remove("hidden");
         }
       },
     },
@@ -169,10 +181,11 @@ function startVideo(elapsed) {
   const seekTo = Math.max(0, elapsed);
 
   if (isYouTube) {
+    // Mostra o botão imediatamente — o iframe fica na frente mas o botão tem z-index:100
+    if (!unmuteRequested) $("unmute").classList.remove("hidden");
     if (ytReady && ytPlayer) {
       ytPlayer.seekTo(seekTo, true);
       ytPlayer.playVideo();
-      $("unmute").classList.remove("hidden");
     } else {
       ytPendingSeek = seekTo; // onReady irá buscar quando o player estiver pronto
     }
