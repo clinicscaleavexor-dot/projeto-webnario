@@ -90,6 +90,23 @@
   font-weight: 600;
 }
 
+/* Autocomplete de telefone no formulário de agendamento */
+.phone-ac-wrap { position: relative; }
+.phone-dropdown {
+  position: absolute; top: calc(100% + 2px); left: 0; right: 0;
+  background: var(--surface, #fff); border: 1px solid var(--border);
+  border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,.18);
+  z-index: 200; max-height: 210px; overflow-y: auto;
+}
+.phone-dd-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: .45rem .75rem; cursor: pointer; font-size: .84rem; gap: .5rem;
+}
+.phone-dd-item:hover { background: var(--bg); }
+.phone-dd-item + .phone-dd-item { border-top: 1px solid var(--bg); }
+.phone-dd-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.phone-dd-phone { color: var(--text-dim); font-size: .78rem; white-space: nowrap; }
+
 /* Painel de configurações de disparo */
 .disp-settings-panel {
   background: var(--bg); border: 1px solid var(--border);

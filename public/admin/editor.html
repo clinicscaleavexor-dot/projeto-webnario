@@ -304,9 +304,10 @@
         <!-- Formulário (oculto por padrão) -->
         <div id="sched-msg-form" class="hidden sub-item" style="margin-top:.6rem;">
           <div class="field-row">
-            <div class="field">
+            <div class="field phone-ac-wrap">
               <label>Telefone (com DDD) *</label>
-              <input id="sched-phone" placeholder="(31) 9 9999-9999" />
+              <input id="sched-phone" placeholder="Digite ou busque pelo número..." autocomplete="off" />
+              <div id="sched-phone-dropdown" class="phone-dropdown hidden"></div>
             </div>
             <div class="field" style="max-width:200px;">
               <label>Nome (opcional)</label>
@@ -318,8 +319,28 @@
             </div>
           </div>
           <div class="field">
-            <label>Mensagem *</label>
-            <textarea id="sched-message" rows="3" placeholder="Digite a mensagem..." style="width:100%;resize:vertical;"></textarea>
+            <div class="row spread" style="margin-bottom:.35rem;">
+              <label style="margin:0;">Mensagem *</label>
+              <button type="button" id="toggle-templates" class="btn btn--sm btn--ghost" style="font-size:.76rem;">📋 Ver templates</button>
+            </div>
+            <!-- Templates editáveis -->
+            <div id="sched-templates" class="hidden" style="margin-bottom:.5rem;display:flex;flex-direction:column;gap:.4rem;">
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.6rem;">
+                <div class="row spread" style="margin-bottom:.3rem;">
+                  <span style="font-size:.8rem;font-weight:600;">📺 Link da aula</span>
+                  <button type="button" id="use-tmpl-link" class="btn btn--sm btn--ghost" style="font-size:.73rem;">Usar ↓</button>
+                </div>
+                <textarea id="tmpl-link-text" rows="4" style="width:100%;font-size:.79rem;resize:vertical;background:var(--surface,#fff);border:1px solid var(--border);border-radius:4px;padding:.4em .5em;color:var(--text);"></textarea>
+              </div>
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.6rem;">
+                <div class="row spread" style="margin-bottom:.3rem;">
+                  <span style="font-size:.8rem;font-weight:600;">💬 Se assistiu</span>
+                  <button type="button" id="use-tmpl-followup" class="btn btn--sm btn--ghost" style="font-size:.73rem;">Usar ↓</button>
+                </div>
+                <textarea id="tmpl-followup-text" rows="2" style="width:100%;font-size:.79rem;resize:vertical;background:var(--surface,#fff);border:1px solid var(--border);border-radius:4px;padding:.4em .5em;color:var(--text);"></textarea>
+              </div>
+            </div>
+            <textarea id="sched-message" rows="4" placeholder="Escreva a mensagem ou use um template acima..." style="width:100%;resize:vertical;"></textarea>
           </div>
           <div class="row" style="gap:.5rem;">
             <button class="btn btn--sm btn--primary" id="sched-save-btn">Agendar envio</button>

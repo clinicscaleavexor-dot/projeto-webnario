@@ -45,6 +45,19 @@ const $ = (id) => document.getElementById(id);
   $("new-sched-msg-btn").addEventListener("click", openSchedForm);
   $("sched-cancel-btn").addEventListener("click", closeSchedForm);
   $("sched-save-btn").addEventListener("click", saveScheduledMessage);
+  $("toggle-templates").addEventListener("click", toggleTemplatesPanel);
+  $("use-tmpl-link").addEventListener("click", () => {
+    $("sched-message").value = $("tmpl-link-text").value;
+    $("sched-message").focus();
+  });
+  $("use-tmpl-followup").addEventListener("click", () => {
+    $("sched-message").value = $("tmpl-followup-text").value;
+    $("sched-message").focus();
+  });
+  $("sched-phone").addEventListener("input", filterPhoneDropdown);
+  $("sched-phone").addEventListener("blur", () =>
+    setTimeout(() => $("sched-phone-dropdown").classList.add("hidden"), 180)
+  );
   $("leads-list").addEventListener("click", (e) => {
     const phoneEl = e.target.closest(".lead-phone-copy");
     if (phoneEl) {
@@ -1412,10 +1425,9 @@ async function sendLeadAudio(lead, btn) {
 //  MENSAGENS AGENDADAS
 // =====================================================================
 function openSchedForm() {
-  const form = $("sched-msg-form");
-  form.classList.remove("hidden");
+  $("sched-msg-form").classList.remove("hidden");
   $("new-sched-msg-btn").classList.add("hidden");
-  // Preenche data/hora com +1h a partir de agora (BRT)
+  // Preenche data/hora com +1h
   const now = new Date(Date.now() + 60 * 60 * 1000);
   const pad = (n) => String(n).padStart(2, "0");
   $("sched-datetime").value = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
@@ -1423,10 +1435,62 @@ function openSchedForm() {
 
 function closeSchedForm() {
   $("sched-msg-form").classList.add("hidden");
+  $("sched-templates").classList.add("hidden");
   $("new-sched-msg-btn").classList.remove("hidden");
   $("sched-phone").value = "";
   $("sched-name").value = "";
   $("sched-message").value = "";
+  $("sched-phone-dropdown").classList.add("hidden");
+}
+
+function toggleTemplatesPanel() {
+  const panel = $("sched-templates");
+  const isHidden = panel.classList.toggle("hidden");
+  $("toggle-templates").textContent = isHidden ? "📋 Ver templates" : "📋 Ocultar templates";
+  // Inicializa o texto dos templates na primeira abertura
+  if (!isHidden && webinar) {
+    if (!$("tmpl-link-text").value) {
+      const url = publicUrl(webinar.slug);
+      $("tmpl-link-text").value =
+        `🌸 Oi! Tudo bem?\n\nPassando para te lembrar que a aula do *Projeto Topos Lucrativos* vai começar em breve! 💖\n\nClique no link abaixo para assistir:\n\n👉 ${url}\n\nTe esperamos lá! ✨`;
+    }
+    if (!$("tmpl-followup-text").value) {
+      $("tmpl-followup-text").value =
+        `Oii, tudo bem? 😊\n\nSou da equipe da Gisele, você conseguiu ver nossa aula certinho?`;
+    }
+  }
+}
+
+function filterPhoneDropdown() {
+  const query  = $("sched-phone").value.replace(/\D/g, "");
+  const dropdown = $("sched-phone-dropdown");
+  if (query.length < 2) { dropdown.classList.add("hidden"); return; }
+
+  const seen = new Set();
+  const matches = leadsCache.filter(l => {
+    const digits = l.phone.replace(/\D/g, "");
+    if (seen.has(digits)) return false;
+    if (!digits.includes(query)) return false;
+    seen.add(digits);
+    return true;
+  }).slice(0, 8);
+
+  if (!matches.length) { dropdown.classList.add("hidden"); return; }
+
+  dropdown.innerHTML = matches.map(m => `
+    <div class="phone-dd-item" data-phone="${escapeHtml(m.phone)}" data-name="${escapeHtml(m.name)}">
+      <span class="phone-dd-name">${escapeHtml(m.name)}</span>
+      <span class="phone-dd-phone">${escapeHtml(m.phone)}</span>
+    </div>`).join("");
+
+  dropdown.querySelectorAll(".phone-dd-item").forEach(item => {
+    item.addEventListener("click", () => {
+      $("sched-phone").value = item.dataset.phone;
+      $("sched-name").value  = item.dataset.name;
+      dropdown.classList.add("hidden");
+    });
+  });
+  dropdown.classList.remove("hidden");
 }
 
 async function saveScheduledMessage() {
