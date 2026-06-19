@@ -308,12 +308,12 @@ function publicUrl(slug, page = "watch.html") {
   return new URL(`${page}?w=${encodeURIComponent(slug)}`, new URL("../", location.href)).href;
 }
 function updateLinks() {
-  const url = publicUrl(webinar.slug);
-  $("preview-link").href = url;
+  $("preview-link").href = publicUrl(webinar.slug) + "&mode=now";
 }
 async function copyLink() {
-  try { await navigator.clipboard.writeText(publicUrl(webinar.slug)); toast("Link copiado!", "success"); }
-  catch { toast(publicUrl(webinar.slug)); }
+  const url = publicUrl(webinar.slug) + "&mode=now";
+  try { await navigator.clipboard.writeText(url); toast("Link copiado!", "success"); }
+  catch { toast(url); }
 }
 
 // ---------- Salvar core ----------
