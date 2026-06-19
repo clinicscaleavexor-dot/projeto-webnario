@@ -1,8 +1,8 @@
 const MEGA_URL       = "https://apinocode01.megaapi.com.br/rest/sendMessage/megacode-M6hpeUt7tF1/text";
 const MEGA_MEDIA_URL = "https://apinocode01.megaapi.com.br/rest/sendMessage/megacode-M6hpeUt7tF1/mediaUrl";
 const MEGA_TOKEN     = "M6hpeUt7tF1";
-const BATCH_SIZE = 8;
-const DELAY_MS   = 700;
+const BATCH_SIZE = 5;   // por execução (cron a cada 1 min → ~50 msgs em 10 min)
+const DELAY_MS   = 3000; // 3s entre cada mensagem para não disparar tudo de uma vez
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -101,8 +101,9 @@ module.exports = async function handler(req, res) {
   }
 
   const nowMs  = Date.now();
+  // Janela pré-aula: 15–25 min antes → para aula das 15h, dispara de 14h35 a 14h45
   const preMin = new Date(nowMs + 15 * 60 * 1000).toISOString();
-  const preMax = new Date(nowMs + 20 * 60 * 1000).toISOString();
+  const preMax = new Date(nowMs + 25 * 60 * 1000).toISOString();
   const posMin = new Date(nowMs - 80 * 60 * 1000).toISOString();
   const posMax = new Date(nowMs - 75 * 60 * 1000).toISOString();
 
