@@ -387,7 +387,7 @@ function setupViewerChat() {
 
 // ---------- Chat ao vivo do admin ----------
 function setupAdminChat() {
-  $("chat-input-fake").classList.add("hidden");
+  $("chat-input-viewer").classList.add("hidden");
   $("chat-input-real").classList.remove("hidden");
 
   const input = $("chat-text");
