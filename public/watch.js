@@ -179,16 +179,15 @@ function createYouTubePlayer(videoId) {
 
 function startVideo(elapsed) {
   videoSynced = true;
-  const seekTo = Math.max(0, elapsed);
+  const seekTo = videoSeconds(elapsed);
 
   if (isYouTube) {
-    // Mostra o botão imediatamente — o iframe fica na frente mas o botão tem z-index:100
     if (!unmuteRequested) $("unmute").classList.remove("hidden");
     if (ytReady && ytPlayer) {
       ytPlayer.seekTo(seekTo, true);
       ytPlayer.playVideo();
     } else {
-      ytPendingSeek = seekTo; // onReady irá buscar quando o player estiver pronto
+      ytPendingSeek = seekTo;
     }
     return;
   }
@@ -209,7 +208,7 @@ function startVideo(elapsed) {
 }
 
 function syncVideo(elapsed) {
-  const target = Math.max(0, elapsed);
+  const target = videoSeconds(elapsed);
 
   if (isYouTube) {
     if (!ytReady || !ytPlayer || !videoSynced) return;
@@ -265,8 +264,10 @@ function showError() {
 function serverNow() { return Date.now() + clockOffsetMs; }
 function elapsedSeconds() {
   if (!scheduledMs) return 0;
-  return (serverNow() - scheduledMs) / 1000 + adminTimeShift + startOffset;
+  return (serverNow() - scheduledMs) / 1000 + adminTimeShift;
 }
+// Posição real do player = elapsed + offset (startOffset desloca só o vídeo, não o tempo)
+function videoSeconds(elapsed) { return Math.max(0, elapsed + startOffset); }
 
 async function resync() {
   const { data: sn } = await supabase.rpc("server_now");
