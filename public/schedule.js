@@ -4,6 +4,15 @@ import { escapeHtml } from "./assets/js/util.js";
 const $ = (id) => document.getElementById(id);
 const slug = new URLSearchParams(location.search).get("w");
 
+const LEAD_FORM_DEFAULTS = {
+  enabled: true,
+  title: "Garanta sua vaga!",
+  subtitle: "Preencha os dados abaixo para recebermos o link da aula no horário.",
+  name_label: "Nome completo",
+  phone_label: "Telefone (WhatsApp)",
+  button_text: "Confirmar horário",
+};
+
 let webinarData = null;
 let serverNowMs = 0;
 let pendingSlot = null; // slot que aguarda preenchimento de lead
@@ -17,6 +26,15 @@ async function init() {
   if (error || !pkg) return showError();
 
   webinarData = pkg.webinar;
+  const lfSaved = pkg.webinar.settings?.lead_form || {};
+  webinarData.lead_form = {
+    enabled: lfSaved.enabled !== false,
+    title: lfSaved.title || LEAD_FORM_DEFAULTS.title,
+    subtitle: lfSaved.subtitle || LEAD_FORM_DEFAULTS.subtitle,
+    name_label: lfSaved.name_label || LEAD_FORM_DEFAULTS.name_label,
+    phone_label: lfSaved.phone_label || LEAD_FORM_DEFAULTS.phone_label,
+    button_text: lfSaved.button_text || LEAD_FORM_DEFAULTS.button_text,
+  };
   serverNowMs = new Date(pkg.server_now).getTime();
 
   $("loading").classList.add("hidden");
@@ -44,6 +62,29 @@ function watchUrl(slug, params = {}) {
   return url.href;
 }
 
+// ---------- Decide entre abrir o modal de lead ou ir direto pra aula ----------
+function selectSlot(slot, subText) {
+  pendingSlot = slot;
+  if (webinarData.lead_form.enabled) {
+    openLeadModal(subText);
+  } else {
+    proceedWithoutLead(slot);
+  }
+}
+
+function proceedWithoutLead(slot) {
+  const url = watchUrl(webinarData.slug, slot.watchParams);
+  if (slot.redirect) {
+    window.location.href = url;
+    return;
+  }
+  showConfirm({
+    heading: "Vaga confirmada! 🎉",
+    label: `Você vai assistir ${slot.label}. Guarde este link.`,
+    url,
+  });
+}
+
 // ---------- Slots especiais: Assistir Agora e Em 30 Minutos ----------
 function renderSpecialSlots() {
   const host = $("slots-special");
@@ -58,14 +99,13 @@ function renderSpecialSlots() {
     <div class="slot-label">Comece imediatamente</div>
   `;
   nowCard.addEventListener("click", () => {
-    pendingSlot = {
+    selectSlot({
       type: "now",
       scheduled_for_ms: serverNowMs,
       label: "agora",
       watchParams: { start: String(serverNowMs) },
       redirect: true,
-    };
-    openLeadModal("Você vai assistir agora! Preencha seus dados para entrar na aula.");
+    }, "Você vai assistir agora! Preencha seus dados para entrar na aula.");
   });
   host.appendChild(nowCard);
 
@@ -82,13 +122,12 @@ function renderSpecialSlots() {
     <div class="slot-label">Em 30 minutos</div>
   `;
   thirtyCard.addEventListener("click", () => {
-    pendingSlot = {
+    selectSlot({
       type: "relative_30",
       scheduled_for_ms: thirtyTs,
       label: `às ${thirtyTime} (em 30 minutos)`,
       watchParams: { start: String(thirtyTs) },
-    };
-    openLeadModal(`Você quer assistir às ${thirtyTime} (em 30 minutos).`);
+    }, `Você quer assistir às ${thirtyTime} (em 30 minutos).`);
   });
   host.appendChild(thirtyCard);
 }
@@ -142,14 +181,13 @@ function renderDaySlots(webinar, schedules, serverNow) {
     `;
 
     card.addEventListener("click", () => {
-      pendingSlot = {
+      selectSlot({
         type: "scheduled",
         schedule_id: s.id,
         scheduled_for_ms: startMs,
         label: `às ${timeStr} de ${isToday ? "hoje" : "amanhã"}`,
         watchParams: { s: s.id },
-      };
-      openLeadModal(`Você quer assistir às ${timeStr} de ${isToday ? "hoje" : "amanhã"}.`);
+      }, `Você quer assistir às ${timeStr} de ${isToday ? "hoje" : "amanhã"}.`);
     });
 
     grid.appendChild(card);
@@ -166,8 +204,13 @@ function toDateStr(date) {
 // ---------- Modal de lead ----------
 function openLeadModal(subText) {
   trackEvent(webinarData.id, "modal_open");
-  $("lead-sub").textContent = "Preencha os dados abaixo para receber o link da aula no horário escolhido.";
+  const lf = webinarData.lead_form;
+  $("lead-title").textContent = lf.title;
+  $("lead-sub").textContent = lf.subtitle;
   if (subText) $("lead-sub").textContent = subText + " Preencha seus dados para receber o link.";
+  $("lead-name-label").textContent = lf.name_label;
+  $("lead-phone-label").textContent = lf.phone_label;
+  $("lead-submit").textContent = lf.button_text;
   $("lead-name").value = "";
   $("lead-phone").value = "";
   $("lead-error").classList.add("hidden");
@@ -213,7 +256,7 @@ async function submitLead() {
   const { error } = await supabase.from("schedule_leads").insert(payload);
 
   btn.disabled = false;
-  btn.textContent = "Confirmar horário";
+  btn.textContent = webinarData.lead_form.button_text;
 
   if (error) {
     showLeadError("Erro ao salvar. Tente novamente.");

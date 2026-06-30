@@ -12,6 +12,7 @@ let profile = null;
   document.getElementById("who").textContent = profile.name || "Você";
   if (profile.role === "admin") {
     document.getElementById("users-link").classList.remove("hidden");
+    document.getElementById("dispatch-link").classList.remove("hidden");
   }
   document.getElementById("logout").addEventListener("click", signOut);
   document.getElementById("new-webinar").addEventListener("click", createWebinar);

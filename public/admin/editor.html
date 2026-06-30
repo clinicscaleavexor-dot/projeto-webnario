@@ -36,6 +36,7 @@
       <button class="tab" data-tab="cta">CTA</button>
       <button class="tab" data-tab="banner">Banner</button>
       <button class="tab" data-tab="viewers">Espectadores</button>
+      <button class="tab" data-tab="form">Formulário</button>
       <button class="tab" data-tab="leads">Leads</button>
     </nav>
 
@@ -266,6 +267,45 @@
         </div>
       </div>
     </section>
+    <!-- ============ FORMULÁRIO ============ -->
+    <section class="tab-panel" data-panel="form">
+      <div class="card stack">
+        <h2 class="mb0">Formulário antes da aula</h2>
+        <p class="muted mt0">Formulário que a pessoa preenche (nome e telefone) antes de entrar na aula, na página de agendamento.</p>
+
+        <label class="row" style="gap:.5rem;align-items:center;cursor:pointer;">
+          <input type="checkbox" id="lf-enabled" checked />
+          <span>Exibir formulário antes da aula</span>
+        </label>
+        <small class="muted">Se desativado, o visitante vai direto para a aula ao clicar num horário, sem preencher nada e sem gerar lead.</small>
+
+        <hr class="divider" />
+
+        <div class="field">
+          <label>Título</label>
+          <input id="lf-title" placeholder="Garanta sua vaga!" />
+        </div>
+        <div class="field">
+          <label>Subtítulo</label>
+          <input id="lf-subtitle" placeholder="Preencha os dados abaixo para recebermos o link da aula no horário." />
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Rótulo do campo nome</label>
+            <input id="lf-name-label" placeholder="Nome completo" />
+          </div>
+          <div class="field">
+            <label>Rótulo do campo telefone</label>
+            <input id="lf-phone-label" placeholder="Telefone (WhatsApp)" />
+          </div>
+        </div>
+        <div class="field">
+          <label>Texto do botão</label>
+          <input id="lf-button-text" placeholder="Confirmar horário" />
+        </div>
+      </div>
+    </section>
+
     <!-- ============ LEADS ============ -->
     <section class="tab-panel" data-panel="leads">
       <!-- Card: leads capturados -->
@@ -293,14 +333,16 @@
             <button class="btn btn--sm btn--primary" id="leads-refresh">Atualizar</button>
           </div>
         </div>
-        <div id="leads-settings-panel"></div>
+        <div id="dispatch-settings-card" class="hidden">
+          <div id="leads-settings-panel"></div>
+        </div>
         <div id="leads-list">
           <div class="empty">Carregando leads...</div>
         </div>
       </div>
 
       <!-- Card: mensagens agendadas -->
-      <div class="card stack" style="margin-top:.8rem;">
+      <div class="card stack hidden" id="sched-msg-card" style="margin-top:.8rem;">
         <div class="row spread wrap">
           <div>
             <h3 class="mb0">📅 Mensagens Agendadas</h3>

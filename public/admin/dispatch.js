@@ -16,7 +16,7 @@ let editingId = null; // ID da config sendo editada
 //  INIT
 // =====================================================================
 (async function init() {
-  profile = await requireAuth();
+  profile = await requireAuth({ adminOnly: true });
   if (!profile) return;
 
   $("who").textContent = profile.name || "Você";

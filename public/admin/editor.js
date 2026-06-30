@@ -120,6 +120,15 @@ function setupTabs() {
 }
 
 function openLeadsTab() {
+  const isAdmin = profile?.role === "admin";
+  $("dispatch-settings-card").classList.toggle("hidden", !isAdmin);
+  $("sched-msg-card").classList.toggle("hidden", !isAdmin);
+
+  if (!isAdmin) {
+    loadLeads();
+    return;
+  }
+
   if (!settingsPanelReady) {
     settingsPanelReady = true;
     renderDispatchSettings();
@@ -284,6 +293,14 @@ async function loadWebinar() {
   $("v-jitter").value = v.jitter || 12;
   $("waiting-text").value = s.waiting_text || "";
   $("ended-text").value = s.ended_text || "";
+
+  const lf = s.lead_form || {};
+  $("lf-enabled").checked = lf.enabled !== false;
+  $("lf-title").value = lf.title || "";
+  $("lf-subtitle").value = lf.subtitle || "";
+  $("lf-name-label").value = lf.name_label || "";
+  $("lf-phone-label").value = lf.phone_label || "";
+  $("lf-button-text").value = lf.button_text || "";
   $("video-start-offset").value = s.video_start_offset ? fmtClock(s.video_start_offset) : "";
   if (data.video_url) {
     showVideoPreview(data.video_url);
@@ -331,6 +348,14 @@ async function saveCore() {
     waiting_text: $("waiting-text").value.trim(),
     ended_text: $("ended-text").value.trim(),
     video_start_offset: parseClock($("video-start-offset").value) || 0,
+    lead_form: {
+      enabled: $("lf-enabled").checked,
+      title: $("lf-title").value.trim(),
+      subtitle: $("lf-subtitle").value.trim(),
+      name_label: $("lf-name-label").value.trim(),
+      phone_label: $("lf-phone-label").value.trim(),
+      button_text: $("lf-button-text").value.trim(),
+    },
   };
 
   const patch = {
@@ -1277,9 +1302,11 @@ async function loadLeads() {
       <td style="text-align:center;">${dispatchCell(hasPos, lead.scheduled_for, POS_OFFSET, POS_WINDOW)}</td>
       <td>
         <div class="row" style="gap:.4rem;flex-wrap:nowrap;">
+          ${profile?.role === "admin" ? `
           <button class="btn btn--sm btn--ghost lead-remind-btn" data-id="${lead.id}" title="Enviar lembrete manual">📱</button>
           <button class="btn btn--sm btn--ghost lead-followup-btn" data-id="${lead.id}" title="Enviar follow-up em texto">💬</button>
           <button class="btn btn--sm btn--ghost lead-audio-btn" data-id="${lead.id}" title="${dispatchSettings.followup_audio_url ? 'Enviar follow-up em áudio' : 'Configure a URL do áudio nas configurações'}">🎙️</button>
+          ` : ""}
           <button class="btn btn--sm btn--danger lead-delete-btn" data-id="${lead.id}" title="Remover lead">×</button>
         </div>
       </td>
