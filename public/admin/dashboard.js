@@ -1,6 +1,7 @@
 import { supabase, signOut } from "../assets/js/supabase-client.js";
 import { requireAuth } from "../assets/js/auth-guard.js";
 import { makeSlug, escapeHtml, toast } from "../assets/js/util.js";
+import { initSidebar } from "../assets/js/admin-sidebar.js";
 
 const listEl = document.getElementById("list");
 let profile = null;
@@ -9,12 +10,7 @@ let profile = null;
   profile = await requireAuth();
   if (!profile) return;
 
-  document.getElementById("who").textContent = profile.name || "Você";
-  if (profile.role === "admin") {
-    document.getElementById("users-link").classList.remove("hidden");
-    document.getElementById("dispatch-link").classList.remove("hidden");
-  }
-  document.getElementById("logout").addEventListener("click", signOut);
+  initSidebar(profile, "webinarios");
   document.getElementById("new-webinar").addEventListener("click", createWebinar);
   setupDashTabs();
 

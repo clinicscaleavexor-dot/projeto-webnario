@@ -11,18 +11,19 @@
   <script src="../config.js"></script>
 </head>
 <body>
-  <header class="topbar">
-    <div class="row" style="gap:1rem;">
-      <a href="dashboard.html" class="btn btn--ghost btn--sm">← Voltar</a>
-      <div class="brand"><span class="dot"></span> Webnário</div>
-    </div>
-    <div class="row wrap">
-      <a id="preview-link" class="btn btn--ghost btn--sm" target="_blank">Abrir live ↗</a>
-      <button class="btn btn--sm" id="copy-link">Copiar link</button>
-      <button class="btn btn--sm" id="publish-btn">Publicar</button>
-      <button class="btn btn--primary btn--sm" id="save-btn">Salvar</button>
-    </div>
-  </header>
+  <div class="admin-layout">
+    <aside id="sidebar"></aside>
+
+    <div class="main-content">
+      <div class="editor-actions">
+        <a href="dashboard.html" class="btn btn--ghost btn--sm">← Webinários</a>
+        <div class="row wrap" style="gap:.5rem;">
+          <a id="preview-link" class="btn btn--ghost btn--sm" target="_blank">Abrir live ↗</a>
+          <button class="btn btn--sm" id="copy-link">Copiar link</button>
+          <button class="btn btn--sm" id="publish-btn">Publicar</button>
+          <button class="btn btn--primary btn--sm" id="save-btn">Salvar</button>
+        </div>
+      </div>
 
   <main class="container">
     <div class="field">
@@ -402,8 +403,9 @@
       </div>
     </section>
   </main>
+    </div><!-- /.main-content -->
+  </div><!-- /.admin-layout -->
 
-  <!-- Template de linha editável reutilizado pelo JS -->
   <script type="module" src="editor.js?v=20260619"></script>
 </body>
 </html>

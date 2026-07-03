@@ -81,33 +81,39 @@ function isAuthorized(req) {
 module.exports = async function handler(req, res) {
   if (!isAuthorized(req)) return res.status(401).json({ error: "unauthorized" });
 
-  // Verifica configurações de disparo (respeita pausas e modo do painel admin)
+  // Verifica configurações de disparo (respeita pausas, modo e pool de mensagens)
   let autoPreEnabled    = true;
   let autoPosEnabled    = true;
-  let dispatchMode      = "text_all"; // "text_all" | "text_pre_audio_pos"
+  let dispatchMode      = "text_all";
   let followupAudioUrl  = "";
+  let messagePool       = [];
+  let windowStart       = 20; // minutos antes da aula: início do envio (padrão anterior ≈ 20-25)
+  let windowEnd         = 15; // minutos antes da aula: fim do envio
   try {
     const settings = await sbRpc("get_dispatch_settings", {});
     for (const s of settings) {
-      if (s.key === "auto_pre_enabled")    autoPreEnabled   = s.value !== "false";
-      if (s.key === "auto_pos_enabled")    autoPosEnabled   = s.value !== "false";
-      if (s.key === "dispatch_mode")       dispatchMode     = s.value;
-      if (s.key === "followup_audio_url")  followupAudioUrl = s.value;
+      if (s.key === "auto_pre_enabled")          autoPreEnabled   = s.value !== "false";
+      if (s.key === "auto_pos_enabled")          autoPosEnabled   = s.value !== "false";
+      if (s.key === "dispatch_mode")             dispatchMode     = s.value;
+      if (s.key === "followup_audio_url")        followupAudioUrl = s.value;
+      if (s.key === "lead_window_start_minutes") windowStart      = +s.value || windowStart;
+      if (s.key === "lead_window_end_minutes")   windowEnd        = +s.value || windowEnd;
+      if (s.key === "message_pool") {
+        try { messagePool = JSON.parse(s.value).filter(t => t && t.trim()); } catch {}
+      }
     }
-  } catch {} // Se falhar, mantém padrão (ativado, modo texto)
+  } catch {}
 
   if (!autoPreEnabled && !autoPosEnabled) {
     return res.status(200).json({ ok: true, paused: "all", time: new Date().toISOString() });
   }
 
   const nowMs  = Date.now();
-  // Janela pré-aula: 15–25 min antes → para aula das 15h, dispara de 14h35 a 14h45
-  const preMin = new Date(nowMs + 15 * 60 * 1000).toISOString();
-  const preMax = new Date(nowMs + 25 * 60 * 1000).toISOString();
+  const preMin = new Date(nowMs + windowEnd   * 60 * 1000).toISOString();
+  const preMax = new Date(nowMs + windowStart * 60 * 1000).toISOString();
   const posMin = new Date(nowMs - 80 * 60 * 1000).toISOString();
   const posMax = new Date(nowMs - 75 * 60 * 1000).toISOString();
 
-  // Busca leads pendentes via RPC (filtra já enviados com NOT EXISTS)
   let leads = [];
   try {
     leads = await sbRpc("get_pending_reminders", {
@@ -154,9 +160,19 @@ module.exports = async function handler(req, res) {
 
     // Envia WhatsApp somente após garantir o claim no banco
     const watchUrl = buildWatchUrl(lead.webinar_slug, lead);
-    const text = type === "pre"
-      ? `🌸 Oi, ${lead.name}! Tudo bem?\n\nSua aula do *Projeto Topos Lucrativos* começa em breve! 💖\n\nJá pode clicar no link abaixo para entrar na transmissão:\n\n👉 ${watchUrl}\n\nTe esperamos lá! ✨`
-      : `🌸 Oi, ${lead.name}! Tudo bem?\n\nQueria saber se você conseguiu assistir à nossa aula do *Projeto Topos Lucrativos* hoje! 💖\n\nConseguiu assistir certinho? Me conta! 😊`;
+
+    let text;
+    if (type === "pre" && messagePool.length > 0) {
+      const idx = (lead.rotation_index || 0) % messagePool.length;
+      const template = messagePool[idx];
+      text = template
+        .replace(/\{nome\}/gi, lead.name)
+        .replace(/\{link\}/gi, watchUrl);
+    } else if (type === "pre") {
+      text = `🌸 Oi, ${lead.name}! Tudo bem?\n\nSua aula começa em breve! 💖\n\nJá pode clicar no link abaixo para entrar na transmissão:\n\n👉 ${watchUrl}\n\nTe esperamos lá! ✨`;
+    } else {
+      text = `🌸 Oi, ${lead.name}! Tudo bem?\n\nQueria saber se você conseguiu assistir à nossa aula hoje! 💖\n\nConseguiu assistir certinho? Me conta! 😊`;
+    }
 
     // Modo "text_pre_audio_pos": follow-up pós-aula vai como nota de voz
     const useAudio = type === "pos" && dispatchMode === "text_pre_audio_pos" && followupAudioUrl;

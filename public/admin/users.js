@@ -1,6 +1,7 @@
 import { supabase, CONFIG } from "../assets/js/supabase-client.js";
 import { requireAuth } from "../assets/js/auth-guard.js";
 import { escapeHtml, toast } from "../assets/js/util.js";
+import { initSidebar } from "../assets/js/admin-sidebar.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -8,6 +9,7 @@ const $ = (id) => document.getElementById(id);
   const profile = await requireAuth({ adminOnly: true });
   if (!profile) return;
 
+  initSidebar(profile, "");
   $("create-form").addEventListener("submit", onCreate);
   await loadUsers();
 })();

@@ -1,6 +1,7 @@
 import { supabase, signOut } from "../assets/js/supabase-client.js";
 import { requireAuth } from "../assets/js/auth-guard.js";
 import { escapeHtml, toast } from "../assets/js/util.js";
+import { initSidebar } from "../assets/js/admin-sidebar.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -19,8 +20,7 @@ let editingId = null; // ID da config sendo editada
   profile = await requireAuth({ adminOnly: true });
   if (!profile) return;
 
-  $("who").textContent = profile.name || "Você";
-  $("logout").addEventListener("click", signOut);
+  initSidebar(profile, "disparos");
 
   $("btn-new-dispatch").addEventListener("click", openNewForm);
   $("f-cancel").addEventListener("click", closeForm);
@@ -31,9 +31,19 @@ let editingId = null; // ID da config sendo editada
   $("log-close").addEventListener("click", closeLogModal);
   $("log-backdrop").addEventListener("click", closeLogModal);
 
+  // Pool de mensagens
+  $("pool-add-btn").addEventListener("click", addPoolMessage);
+  $("pool-save-btn").addEventListener("click", saveMessagePool);
+
+  // Janela de tempo
+  $("window-save-btn").addEventListener("click", saveWindow);
+  $("dw-start").addEventListener("input", updateWindowExample);
+  $("dw-end").addEventListener("input", updateWindowExample);
+
+  await loadDispatchGlobalSettings();
   await loadWebinars();
   await loadDispatches();
-  startMonitor(); // inicia automaticamente ao abrir a página
+  startMonitor();
 })();
 
 // =====================================================================
@@ -365,6 +375,110 @@ async function openLogModal(dispatchId, name) {
 function closeLogModal() {
   $("log-modal").classList.add("hidden");
   $("log-modal").style.display = "none";
+}
+
+// =====================================================================
+//  POOL DE MENSAGENS + JANELA DE TEMPO (configurações globais)
+// =====================================================================
+let globalSettings = {};
+
+async function loadDispatchGlobalSettings() {
+  const { data } = await supabase.from("dispatch_settings").select("key, value");
+  for (const r of (data || [])) globalSettings[r.key] = r.value;
+
+  // Renderizar pool
+  let pool = [];
+  try { pool = JSON.parse(globalSettings.message_pool || "[]"); } catch {}
+  renderPoolList(pool);
+
+  // Renderizar janela
+  $("dw-start").value = globalSettings.lead_window_start_minutes || 30;
+  $("dw-end").value   = globalSettings.lead_window_end_minutes   || 10;
+  updateWindowExample();
+}
+
+async function upsertSetting(key, value) {
+  await supabase.from("dispatch_settings").upsert({ key, value, updated_at: new Date().toISOString() });
+}
+
+// -- Pool --
+function renderPoolList(pool) {
+  const host = $("pool-list");
+  if (!pool.length) {
+    host.innerHTML = `<p class="muted" style="font-size:.85rem;">Nenhuma mensagem no pool. Clique em "+ Adicionar mensagem".</p>`;
+    return;
+  }
+  host.innerHTML = "";
+  pool.forEach((msg, i) => {
+    const row = document.createElement("div");
+    row.className = "sub-item";
+    row.style.cssText = "position:relative;";
+    row.innerHTML = `
+      <div class="row spread" style="margin-bottom:.3rem;">
+        <span style="font-size:.8rem;font-weight:600;color:var(--text-dim);">Mensagem ${i + 1}</span>
+        <button class="btn btn--sm btn--danger pool-remove-btn" data-i="${i}">× Remover</button>
+      </div>
+      <textarea class="pool-msg-text" rows="3" style="width:100%;resize:vertical;">${escapeHtml(msg)}</textarea>`;
+    host.appendChild(row);
+  });
+  host.querySelectorAll(".pool-remove-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const currentPool = collectPool();
+      currentPool.splice(parseInt(btn.dataset.i, 10), 1);
+      renderPoolList(currentPool);
+    });
+  });
+}
+
+function collectPool() {
+  return Array.from(document.querySelectorAll(".pool-msg-text")).map(t => t.value.trim()).filter(Boolean);
+}
+
+function addPoolMessage() {
+  const current = collectPool();
+  current.push("");
+  renderPoolList(current);
+  const textareas = document.querySelectorAll(".pool-msg-text");
+  if (textareas.length) textareas[textareas.length - 1].focus();
+}
+
+async function saveMessagePool() {
+  const pool = collectPool();
+  await upsertSetting("message_pool", JSON.stringify(pool));
+  globalSettings.message_pool = JSON.stringify(pool);
+  toast(`Pool salvo com ${pool.length} mensagem${pool.length !== 1 ? "s" : ""}!`, "success");
+}
+
+// -- Janela de tempo --
+function updateWindowExample() {
+  const start = parseInt($("dw-start").value, 10) || 30;
+  const end   = parseInt($("dw-end").value,   10) || 10;
+  const dur   = Math.max(0, start - end);
+  const exEl  = $("window-example");
+  if (dur <= 0) {
+    exEl.textContent = "⚠️ O início deve ser maior que o fim.";
+    return;
+  }
+  exEl.textContent = `Exemplo: aula às 20:00 com 60 leads → envia de ${fmtOffset(start)} a ${fmtOffset(end)}, ≈${Math.round(60 / dur)} leads/minuto.`;
+}
+
+function fmtOffset(minutesBefore) {
+  const d = new Date(new Date().setHours(20, 0, 0, 0) - minutesBefore * 60000);
+  return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+async function saveWindow() {
+  const start = parseInt($("dw-start").value, 10) || 30;
+  const end   = parseInt($("dw-end").value,   10) || 10;
+  if (start <= end) return toast("O início deve ser maior que o fim.", "error");
+  await Promise.all([
+    upsertSetting("lead_window_start_minutes", String(start)),
+    upsertSetting("lead_window_end_minutes",   String(end)),
+  ]);
+  globalSettings.lead_window_start_minutes = String(start);
+  globalSettings.lead_window_end_minutes   = String(end);
+  toast("Janela de envio salva!", "success");
+  updateWindowExample();
 }
 
 // =====================================================================

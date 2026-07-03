@@ -1,5 +1,6 @@
 import { supabase, CONFIG } from "../assets/js/supabase-client.js";
 import { requireAuth } from "../assets/js/auth-guard.js";
+import { initSidebar } from "../assets/js/admin-sidebar.js";
 import {
   fmtClock, parseClock, escapeHtml, toast,
   localInputToISO, isoToLocalInput,
@@ -16,6 +17,7 @@ const $ = (id) => document.getElementById(id);
 (async function init() {
   profile = await requireAuth();
   if (!profile) return;
+  initSidebar(profile, "webinarios");
   if (!WID) { toast("Webinário não informado.", "error"); return; }
 
   setupTabs();
