@@ -1679,24 +1679,35 @@ function openDisparosTab() {
     dispatchMsgReady = true;
     setupDisparosForm();
   }
-  loadDispatchMessages();
+  loadDispatchMessages("pre");
+  loadDispatchMessages("pos");
   loadDispatchConfig();
 }
 
 function setupDisparosForm() {
-  const textRadio  = $("dm-type-text");
-  const audioRadio = $("dm-type-audio");
-  const textWrap   = $("dm-text-wrap");
-  const audioWrap  = $("dm-audio-wrap");
-
-  function toggleType() {
-    const isAudio = audioRadio.checked;
-    textWrap.classList.toggle("hidden", isAudio);
-    audioWrap.classList.toggle("hidden", !isAudio);
+  // Pré-aula toggle text/audio
+  const preText  = $("dm-pre-type-text");
+  const preAudio = $("dm-pre-type-audio");
+  function togglePre() {
+    const isAudio = preAudio.checked;
+    $("dm-pre-text-wrap").classList.toggle("hidden", isAudio);
+    $("dm-pre-audio-wrap").classList.toggle("hidden", !isAudio);
   }
-  textRadio.addEventListener("change", toggleType);
-  audioRadio.addEventListener("change", toggleType);
-  $("dm-add-btn").addEventListener("click", addDispatchMessage);
+  preText.addEventListener("change", togglePre);
+  preAudio.addEventListener("change", togglePre);
+  $("dm-pre-add-btn").addEventListener("click", () => addDispatchMessage("pre"));
+
+  // Pós-aula toggle text/audio
+  const posText  = $("dm-pos-type-text");
+  const posAudio = $("dm-pos-type-audio");
+  function togglePos() {
+    const isAudio = posAudio.checked;
+    $("dm-pos-text-wrap").classList.toggle("hidden", isAudio);
+    $("dm-pos-audio-wrap").classList.toggle("hidden", !isAudio);
+  }
+  posText.addEventListener("change", togglePos);
+  posAudio.addEventListener("change", togglePos);
+  $("dm-pos-add-btn").addEventListener("click", () => addDispatchMessage("pos"));
 
   $("dc-pre-start").addEventListener("input", updateDcExample);
   $("dc-pre-end").addEventListener("input",   updateDcExample);
@@ -1750,21 +1761,23 @@ async function saveDispatchConfig() {
   toast("Configurações de disparo salvas!", "success");
 }
 
-async function loadDispatchMessages() {
-  const host = $("dispatch-msg-list");
+async function loadDispatchMessages(dispatchType) {
+  const hostId = dispatchType === "pos" ? "dispatch-pos-list" : "dispatch-pre-list";
+  const host = $(hostId);
   host.innerHTML = `<p class="muted">Carregando...</p>`;
 
   const { data, error } = await supabase
     .from("webinar_dispatch_messages")
     .select("*")
     .eq("webinar_id", WID)
+    .eq("dispatch_type", dispatchType)
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true });
 
   if (error) { host.innerHTML = `<div class="empty">Erro: ${escapeHtml(error.message)}</div>`; return; }
 
   if (!data.length) {
-    host.innerHTML = `<div class="empty" style="border-style:dashed;">Nenhuma mensagem cadastrada ainda.<br>Adicione uma variação abaixo.</div>`;
+    host.innerHTML = `<div class="empty" style="border-style:dashed;">Nenhuma variação cadastrada ainda.</div>`;
     return;
   }
 
@@ -1797,36 +1810,36 @@ async function loadDispatchMessages() {
         <button class="btn btn--sm btn--ghost" data-act="toggle" data-id="${msg.id}" data-active="${msg.active}">
           ${msg.active ? "Pausar" : "Ativar"}
         </button>
-        <button class="btn btn--sm btn--danger" data-act="del" data-id="${msg.id}">×</button>
+        <button class="btn btn--sm btn--danger" data-act="del" data-id="${msg.id}" data-type="${dispatchType}">×</button>
       </div>`;
 
     card.querySelector('[data-act="toggle"]').addEventListener("click", (e) => {
       const btn = e.currentTarget;
-      toggleDispatchMessage(btn.dataset.id, btn.dataset.active === "true");
+      toggleDispatchMessage(btn.dataset.id, btn.dataset.active === "true", dispatchType);
     });
     card.querySelector('[data-act="del"]').addEventListener("click", (e) => {
-      deleteDispatchMessage(e.currentTarget.dataset.id);
+      deleteDispatchMessage(e.currentTarget.dataset.id, dispatchType);
     });
     host.appendChild(card);
   });
 }
 
-async function addDispatchMessage() {
-  const isAudio = $("dm-type-audio").checked;
-  const btn = $("dm-add-btn");
+async function addDispatchMessage(dispatchType) {
+  const isAudio = $(`dm-${dispatchType}-type-audio`).checked;
+  const btn = $(`dm-${dispatchType}-add-btn`);
   btn.disabled = true; btn.textContent = "Salvando...";
 
   let content = "";
   try {
     if (isAudio) {
-      const file = $("dm-audio-file").files[0];
+      const file = $(`dm-${dispatchType}-audio-file`).files[0];
       if (!file) { toast("Selecione um arquivo de áudio.", "error"); return; }
-      $("dm-audio-status").textContent = "Enviando áudio...";
+      $(`dm-${dispatchType}-audio-status`).textContent = "Enviando áudio...";
       content = await uploadDispatchAudio(file);
-      $("dm-audio-status").textContent = "✓ Enviado";
-      $("dm-audio-file").value = "";
+      $(`dm-${dispatchType}-audio-status`).textContent = "✓ Enviado";
+      $(`dm-${dispatchType}-audio-file`).value = "";
     } else {
-      content = $("dm-text").value.trim();
+      content = $(`dm-${dispatchType}-text`).value.trim();
       if (!content) { toast("Digite o texto da mensagem.", "error"); return; }
     }
 
@@ -1834,12 +1847,14 @@ async function addDispatchMessage() {
       .from("webinar_dispatch_messages")
       .select("sort_order")
       .eq("webinar_id", WID)
+      .eq("dispatch_type", dispatchType)
       .order("sort_order", { ascending: false })
       .limit(1)
       .maybeSingle();
 
     const { error } = await supabase.from("webinar_dispatch_messages").insert({
       webinar_id: WID,
+      dispatch_type: dispatchType,
       type: isAudio ? "audio" : "text",
       content,
       sort_order: (existing?.sort_order ?? -1) + 1,
@@ -1847,8 +1862,8 @@ async function addDispatchMessage() {
     if (error) throw new Error(error.message);
 
     toast("Variação adicionada!", "success");
-    $("dm-text").value = "";
-    await loadDispatchMessages();
+    $(`dm-${dispatchType}-text`).value = "";
+    await loadDispatchMessages(dispatchType);
   } catch (err) {
     toast("Erro: " + err.message, "error");
   } finally {
@@ -1856,21 +1871,21 @@ async function addDispatchMessage() {
   }
 }
 
-async function toggleDispatchMessage(id, currentActive) {
+async function toggleDispatchMessage(id, currentActive, dispatchType) {
   const { error } = await supabase
     .from("webinar_dispatch_messages")
     .update({ active: !currentActive })
     .eq("id", id);
   if (error) return toast("Erro: " + error.message, "error");
-  await loadDispatchMessages();
+  await loadDispatchMessages(dispatchType);
 }
 
-async function deleteDispatchMessage(id) {
+async function deleteDispatchMessage(id, dispatchType) {
   if (!confirm("Remover esta variação?")) return;
   const { error } = await supabase.from("webinar_dispatch_messages").delete().eq("id", id);
   if (error) return toast("Erro: " + error.message, "error");
   toast("Variação removida.", "success");
-  await loadDispatchMessages();
+  await loadDispatchMessages(dispatchType);
 }
 
 async function uploadDispatchAudio(file) {

@@ -138,7 +138,8 @@ module.exports = async function handler(req, res) {
 
   // Busca mensagens e owner por webinário
   const webinarIds = [...new Set(leads.map(l => l.webinar_id).filter(Boolean))];
-  const webinarMessages = {};
+  const webinarPreMessages = {};  // webinar_id -> [{type, content}] para pré-aula
+  const webinarPosMessages = {};  // webinar_id -> [{type, content}] para pós-aula
   const webinarOwner = {}; // webinar_id -> owner_id
   if (webinarIds.length) {
     try {
@@ -150,8 +151,13 @@ module.exports = async function handler(req, res) {
         sbQuery("webinars", `id=in.(${webinarIds.join(",")})&select=id,owner_id`),
       ]);
       for (const r of msgRows) {
-        if (!webinarMessages[r.webinar_id]) webinarMessages[r.webinar_id] = [];
-        webinarMessages[r.webinar_id].push(r);
+        if (r.dispatch_type === "pos") {
+          if (!webinarPosMessages[r.webinar_id]) webinarPosMessages[r.webinar_id] = [];
+          webinarPosMessages[r.webinar_id].push(r);
+        } else {
+          if (!webinarPreMessages[r.webinar_id]) webinarPreMessages[r.webinar_id] = [];
+          webinarPreMessages[r.webinar_id].push(r);
+        }
       }
       for (const w of webRows) webinarOwner[w.id] = w.owner_id;
     } catch {}
@@ -210,14 +216,17 @@ module.exports = async function handler(req, res) {
     // Envia WhatsApp somente após garantir o claim no banco
 
     // Mensagens por webinário têm prioridade; fallback pro pool global
-    const wMsgs = type === "pre" ? (webinarMessages[lead.webinar_id] || []) : [];
     const rotIdx = Number(lead.rotation_index) || 0;
+    const wMsgsPre = webinarPreMessages[lead.webinar_id] || [];
+    const wMsgsPos = webinarPosMessages[lead.webinar_id] || [];
+    const wMsgs = type === "pre" ? wMsgsPre : wMsgsPos;
 
     let useAudio = false;
     let audioUrl = "";
     let text = "";
 
     if (wMsgs.length > 0) {
+      // Mensagens específicas do webinário (pre ou pos)
       const msg = wMsgs[rotIdx % wMsgs.length];
       if (msg.type === "audio") {
         useAudio = true;
@@ -228,14 +237,16 @@ module.exports = async function handler(req, res) {
           .replace(/\{link\}/gi, watchUrl);
       }
     } else if (type === "pre" && messagePool.length > 0) {
+      // Fallback: pool global pré-aula
       const template = messagePool[rotIdx % messagePool.length];
       text = template
         .replace(/\{nome\}/gi, lead.name)
         .replace(/\{link\}/gi, watchUrl);
     } else if (type === "pre") {
+      // Fallback padrão pré-aula
       text = `🌸 Oi, ${lead.name}! Tudo bem?\n\nSua aula começa em breve! 💖\n\nJá pode clicar no link abaixo para entrar na transmissão:\n\n👉 ${watchUrl}\n\nTe esperamos lá! ✨`;
     } else {
-      // pos-aula: modo áudio global se configurado
+      // Fallback pós-aula: modo áudio global se configurado
       if (dispatchMode === "text_pre_audio_pos" && followupAudioUrl) {
         useAudio = true; audioUrl = followupAudioUrl;
       } else {
