@@ -11,6 +11,7 @@ const LEAD_FORM_DEFAULTS = {
   name_label: "Nome completo",
   phone_label: "Telefone (WhatsApp)",
   button_text: "Confirmar horário",
+  extra_fields: [],
 };
 
 let webinarData = null;
@@ -34,6 +35,7 @@ async function init() {
     name_label: lfSaved.name_label || LEAD_FORM_DEFAULTS.name_label,
     phone_label: lfSaved.phone_label || LEAD_FORM_DEFAULTS.phone_label,
     button_text: lfSaved.button_text || LEAD_FORM_DEFAULTS.button_text,
+    extra_fields: lfSaved.extra_fields || [],
   };
   serverNowMs = new Date(pkg.server_now).getTime();
 
@@ -213,9 +215,42 @@ function openLeadModal(subText) {
   $("lead-submit").textContent = lf.button_text;
   $("lead-name").value = "";
   $("lead-phone").value = "";
+  renderExtraFields(lf.extra_fields || []);
   $("lead-error").classList.add("hidden");
   $("lead-modal").classList.remove("hidden");
   setTimeout(() => $("lead-name").focus(), 80);
+}
+
+function renderExtraFields(fields) {
+  const host = $("lead-extra-fields");
+  const active = fields.filter(f => f.enabled && f.label);
+  if (!active.length) { host.innerHTML = ""; return; }
+  host.innerHTML = active.map((f, i) => `
+    <div class="field">
+      <label>${f.label}${f.required ? "" : " <span style='color:var(--text-dim);font-size:.8rem;font-weight:400;'>(opcional)</span>"}</label>
+      <input id="lead-extra-${i}" type="text" placeholder="${f.placeholder || ""}" />
+    </div>`).join("");
+}
+
+function collectExtraData() {
+  const fields = (webinarData.lead_form.extra_fields || []).filter(f => f.enabled && f.label);
+  const result = {};
+  fields.forEach((f, i) => {
+    const el = $(`lead-extra-${i}`);
+    if (el) result[f.label] = el.value.trim();
+  });
+  return result;
+}
+
+function validateExtraFields() {
+  const fields = (webinarData.lead_form.extra_fields || []).filter(f => f.enabled && f.label);
+  for (let i = 0; i < fields.length; i++) {
+    if (fields[i].required) {
+      const el = $(`lead-extra-${i}`);
+      if (el && !el.value.trim()) return `Preencha o campo "${fields[i].label}".`;
+    }
+  }
+  return null;
 }
 
 function closeLeadModal() {
@@ -240,10 +275,14 @@ async function submitLead() {
     return;
   }
 
+  const extraError = validateExtraFields();
+  if (extraError) { showLeadError(extraError); return; }
+
   const btn = $("lead-submit");
   btn.disabled = true;
   btn.textContent = "Salvando...";
 
+  const extraData = collectExtraData();
   const payload = {
     webinar_id: webinarData.id,
     name,
@@ -251,6 +290,7 @@ async function submitLead() {
     scheduled_for: new Date(pendingSlot.scheduled_for_ms).toISOString(),
     schedule_type: pendingSlot.type,
     schedule_id: pendingSlot.schedule_id || null,
+    extra_data: Object.keys(extraData).length ? extraData : null,
   };
 
   const { error } = await supabase.from("schedule_leads").insert(payload);

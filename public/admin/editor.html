@@ -304,6 +304,59 @@
           <label>Texto do botão</label>
           <input id="lf-button-text" placeholder="Confirmar horário" />
         </div>
+
+        <hr class="divider" />
+
+        <h3 class="mb0">Perguntas extras (opcionais)</h3>
+        <p class="muted mt0" style="font-size:.85rem;">Adicione até 2 perguntas extras ao formulário. As respostas ficam salvas junto ao lead.</p>
+
+        <!-- Pergunta extra 1 -->
+        <div class="card" style="padding:.9rem;background:var(--bg-soft);">
+          <label class="row" style="gap:.5rem;align-items:center;cursor:pointer;margin-bottom:.7rem;">
+            <input type="checkbox" id="lf-eq1-enabled" />
+            <span style="font-weight:600;font-size:.9rem;">Pergunta extra 1</span>
+          </label>
+          <div id="lf-eq1-fields">
+            <div class="field-row">
+              <div class="field">
+                <label>Texto da pergunta</label>
+                <input id="lf-eq1-label" placeholder="Ex: Como você nos encontrou?" />
+              </div>
+              <div class="field">
+                <label>Placeholder</label>
+                <input id="lf-eq1-placeholder" placeholder="Ex: Instagram, indicação..." />
+              </div>
+            </div>
+            <label class="row" style="gap:.5rem;align-items:center;cursor:pointer;">
+              <input type="checkbox" id="lf-eq1-required" />
+              <span style="font-size:.85rem;">Resposta obrigatória</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Pergunta extra 2 -->
+        <div class="card" style="padding:.9rem;background:var(--bg-soft);">
+          <label class="row" style="gap:.5rem;align-items:center;cursor:pointer;margin-bottom:.7rem;">
+            <input type="checkbox" id="lf-eq2-enabled" />
+            <span style="font-weight:600;font-size:.9rem;">Pergunta extra 2</span>
+          </label>
+          <div id="lf-eq2-fields">
+            <div class="field-row">
+              <div class="field">
+                <label>Texto da pergunta</label>
+                <input id="lf-eq2-label" placeholder="Ex: Qual seu maior desafio hoje?" />
+              </div>
+              <div class="field">
+                <label>Placeholder</label>
+                <input id="lf-eq2-placeholder" placeholder="Ex: Falta de tempo, dinheiro..." />
+              </div>
+            </div>
+            <label class="row" style="gap:.5rem;align-items:center;cursor:pointer;">
+              <input type="checkbox" id="lf-eq2-required" />
+              <span style="font-size:.85rem;">Resposta obrigatória</span>
+            </label>
+          </div>
+        </div>
       </div>
     </section>
 

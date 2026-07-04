@@ -303,6 +303,17 @@ async function loadWebinar() {
   $("lf-name-label").value = lf.name_label || "";
   $("lf-phone-label").value = lf.phone_label || "";
   $("lf-button-text").value = lf.button_text || "";
+
+  const eq = lf.extra_fields || [{}, {}];
+  const eq1 = eq[0] || {}, eq2 = eq[1] || {};
+  $("lf-eq1-enabled").checked   = !!eq1.enabled;
+  $("lf-eq1-label").value       = eq1.label || "";
+  $("lf-eq1-placeholder").value = eq1.placeholder || "";
+  $("lf-eq1-required").checked  = !!eq1.required;
+  $("lf-eq2-enabled").checked   = !!eq2.enabled;
+  $("lf-eq2-label").value       = eq2.label || "";
+  $("lf-eq2-placeholder").value = eq2.placeholder || "";
+  $("lf-eq2-required").checked  = !!eq2.required;
   $("video-start-offset").value = s.video_start_offset ? fmtClock(s.video_start_offset) : "";
   if (data.video_url) {
     showVideoPreview(data.video_url);
@@ -357,6 +368,20 @@ async function saveCore() {
       name_label: $("lf-name-label").value.trim(),
       phone_label: $("lf-phone-label").value.trim(),
       button_text: $("lf-button-text").value.trim(),
+      extra_fields: [
+        {
+          enabled: $("lf-eq1-enabled").checked,
+          label: $("lf-eq1-label").value.trim(),
+          placeholder: $("lf-eq1-placeholder").value.trim(),
+          required: $("lf-eq1-required").checked,
+        },
+        {
+          enabled: $("lf-eq2-enabled").checked,
+          label: $("lf-eq2-label").value.trim(),
+          placeholder: $("lf-eq2-placeholder").value.trim(),
+          required: $("lf-eq2-required").checked,
+        },
+      ],
     },
   };
 
@@ -1296,7 +1321,15 @@ async function loadLeads() {
       ? `<span class="tag" style="background:rgba(245,158,11,.2);color:#f59e0b;margin-left:.4rem;" title="${lead._count} agendamentos do mesmo número">${lead._count}x</span>`
       : "";
     tr.innerHTML = `
-      <td>${escapeHtml(lead.name)}${countBadge}</td>
+      <td>
+        ${escapeHtml(lead.name)}${countBadge}
+        ${lead.extra_data && Object.keys(lead.extra_data).length ? `
+          <div style="margin-top:.25rem;">
+            ${Object.entries(lead.extra_data).map(([k, v]) =>
+              `<div style="font-size:.74rem;color:var(--text-dim);"><span style="font-weight:600;">${escapeHtml(k)}:</span> ${escapeHtml(v || "—")}</div>`
+            ).join("")}
+          </div>` : ""}
+      </td>
       <td><span class="lead-phone-copy" data-phone="${escapeHtml(lead.phone)}" title="Clique para copiar">${escapeHtml(lead.phone)}</span></td>
       <td>${new Date(lead.scheduled_for).toLocaleString("pt-BR")}</td>
       <td><span class="tag tag--${lead.schedule_type}">${typeLabel}</span></td>
