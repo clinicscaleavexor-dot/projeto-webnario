@@ -23,12 +23,19 @@ export async function getSession() {
 export async function getMyProfile() {
   const { data: u } = await supabase.auth.getUser();
   if (!u?.user) return null;
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("profiles")
     .select("id, role, name, custom_domain")
     .eq("id", u.user.id)
     .single();
-  return data ?? { id: u.user.id, role: "user", name: u.user.email };
+  if (!error && data) return data;
+  // Fallback: custom_domain pode não existir no banco ainda
+  const { data: d2 } = await supabase
+    .from("profiles")
+    .select("id, role, name")
+    .eq("id", u.user.id)
+    .single();
+  return d2 ?? { id: u.user.id, role: "user", name: u.user.email };
 }
 
 export async function signOut() {
