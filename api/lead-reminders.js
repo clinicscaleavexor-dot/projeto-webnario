@@ -215,6 +215,9 @@ module.exports = async function handler(req, res) {
 
     // Envia WhatsApp somente após garantir o claim no banco
 
+    // Link personalizado para o horário que este lead específico agendou
+    const watchUrl = buildWatchUrl(lead.webinar_slug, lead);
+
     // Mensagens por webinário têm prioridade; fallback pro pool global
     const rotIdx = Number(lead.rotation_index) || 0;
     const wMsgsPre = webinarPreMessages[lead.webinar_id] || [];
