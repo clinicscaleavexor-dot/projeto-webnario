@@ -369,17 +369,24 @@
           <div class="row spread wrap" style="margin-bottom:.6rem;">
             <div>
               <h3 class="mb0">⏱ Janela de envio</h3>
-              <small class="muted">Tempo após a aula para enviar o follow-up.</small>
+              <small class="muted">Período após a aula em que os follow-ups são enviados.</small>
             </div>
             <label class="row" style="gap:.4rem;cursor:pointer;">
               <input type="checkbox" id="dc-pos-enabled" checked />
               <span style="font-size:.88rem;">Ativo</span>
             </label>
           </div>
-          <div class="field" style="max-width:220px;">
-            <label>Enviar X minutos após a aula</label>
-            <input type="number" id="dc-pos-delay" min="1" max="1440" value="75" />
+          <div class="field-row">
+            <div class="field" style="max-width:200px;">
+              <label>Início (min após a aula)</label>
+              <input type="number" id="dc-pos-start" min="1" max="1440" value="60" />
+            </div>
+            <div class="field" style="max-width:200px;">
+              <label>Fim (min após a aula)</label>
+              <input type="number" id="dc-pos-end" min="1" max="1440" value="90" />
+            </div>
           </div>
+          <small id="dc-pos-example" class="muted"></small>
         </div>
 
         <button class="btn btn--primary btn--sm" id="dc-save-btn" style="align-self:flex-start;">

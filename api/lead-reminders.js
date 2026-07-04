@@ -99,17 +99,21 @@ module.exports = async function handler(req, res) {
   let dispatchMode      = "text_all";
   let followupAudioUrl  = "";
   let messagePool       = [];
-  let windowStart       = 20; // minutos antes da aula: início do envio (padrão anterior ≈ 20-25)
-  let windowEnd         = 15; // minutos antes da aula: fim do envio
+  let preWinStart       = 30; // minutos antes da aula: início do envio (fallback global)
+  let preWinEnd         = 10; // minutos antes da aula: fim do envio
+  let posWinStart       = 60; // minutos após a aula: início do follow-up (fallback global)
+  let posWinEnd         = 90; // minutos após a aula: fim do follow-up
   try {
     const settings = await sbRpc("get_dispatch_settings", {});
     for (const s of settings) {
-      if (s.key === "auto_pre_enabled")          autoPreEnabled   = s.value !== "false";
-      if (s.key === "auto_pos_enabled")          autoPosEnabled   = s.value !== "false";
-      if (s.key === "dispatch_mode")             dispatchMode     = s.value;
-      if (s.key === "followup_audio_url")        followupAudioUrl = s.value;
-      if (s.key === "lead_window_start_minutes") windowStart      = +s.value || windowStart;
-      if (s.key === "lead_window_end_minutes")   windowEnd        = +s.value || windowEnd;
+      if (s.key === "auto_pre_enabled")           autoPreEnabled = s.value !== "false";
+      if (s.key === "auto_pos_enabled")           autoPosEnabled = s.value !== "false";
+      if (s.key === "dispatch_mode")              dispatchMode   = s.value;
+      if (s.key === "followup_audio_url")         followupAudioUrl = s.value;
+      if (s.key === "lead_window_start_minutes")  preWinStart    = +s.value || preWinStart;
+      if (s.key === "lead_window_end_minutes")    preWinEnd      = +s.value || preWinEnd;
+      if (s.key === "pos_window_start_minutes")   posWinStart    = +s.value || posWinStart;
+      if (s.key === "pos_window_end_minutes")     posWinEnd      = +s.value || posWinEnd;
       if (s.key === "message_pool") {
         try { messagePool = JSON.parse(s.value).filter(t => t && t.trim()); } catch {}
       }
@@ -121,10 +125,12 @@ module.exports = async function handler(req, res) {
   }
 
   const nowMs  = Date.now();
-  const preMin = new Date(nowMs + windowEnd   * 60 * 1000).toISOString();
-  const preMax = new Date(nowMs + windowStart * 60 * 1000).toISOString();
-  const posMin = new Date(nowMs - 80 * 60 * 1000).toISOString();
-  const posMax = new Date(nowMs - 75 * 60 * 1000).toISOString();
+  // Pre-aula: aula deve ocorrer entre (agora + preWinEnd min) e (agora + preWinStart min)
+  const preMin = new Date(nowMs + preWinEnd   * 60 * 1000).toISOString();
+  const preMax = new Date(nowMs + preWinStart * 60 * 1000).toISOString();
+  // Pos-aula: aula deve ter ocorrido entre (agora - posWinEnd min) e (agora - posWinStart min)
+  const posMin = new Date(nowMs - posWinEnd   * 60 * 1000).toISOString();
+  const posMax = new Date(nowMs - posWinStart * 60 * 1000).toISOString();
 
   let leads = [];
   try {

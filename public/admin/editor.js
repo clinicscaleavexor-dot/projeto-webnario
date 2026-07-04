@@ -1709,8 +1709,10 @@ function setupDisparosForm() {
   posAudio.addEventListener("change", togglePos);
   $("dm-pos-add-btn").addEventListener("click", () => addDispatchMessage("pos"));
 
-  $("dc-pre-start").addEventListener("input", updateDcExample);
-  $("dc-pre-end").addEventListener("input",   updateDcExample);
+  $("dc-pre-start").addEventListener("input", updateDcPreExample);
+  $("dc-pre-end").addEventListener("input",   updateDcPreExample);
+  $("dc-pos-start").addEventListener("input", updateDcPosExample);
+  $("dc-pos-end").addEventListener("input",   updateDcPosExample);
   $("dc-save-btn").addEventListener("click",  saveDispatchConfig);
 }
 
@@ -1720,37 +1722,56 @@ function loadDispatchConfig() {
   $("dc-pre-start").value     = dc.pre?.window_start_minutes ?? 30;
   $("dc-pre-end").value       = dc.pre?.window_end_minutes   ?? 10;
   $("dc-pos-enabled").checked = dc.pos?.enabled !== false;
-  $("dc-pos-delay").value     = dc.pos?.delay_minutes        ?? 75;
-  updateDcExample();
+  $("dc-pos-start").value     = dc.pos?.window_start_minutes ?? 60;
+  $("dc-pos-end").value       = dc.pos?.window_end_minutes   ?? 90;
+  updateDcPreExample();
+  updateDcPosExample();
 }
 
-function updateDcExample() {
+function updateDcPreExample() {
   const start = +$("dc-pre-start").value || 30;
   const end   = +$("dc-pre-end").value   || 10;
   const dur   = Math.max(0, start - end);
   const ex    = $("dc-pre-example");
   if (dur <= 0) { ex.textContent = "⚠️ Início deve ser maior que o fim."; return; }
-  const d = new Date(new Date().setHours(20, 0, 0, 0));
-  const fmtBefore = (min) => new Date(d.getTime() - min * 60000)
+  const ref = new Date(new Date().setHours(20, 0, 0, 0));
+  const fmt = (min) => new Date(ref.getTime() - min * 60000)
     .toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-  ex.textContent = `Ex: aula às 20:00 → envia de ${fmtBefore(start)} a ${fmtBefore(end)} (~${Math.round(60 / dur)} leads/min)`;
+  ex.textContent = `Ex: aula às 20:00 → envia de ${fmt(start)} a ${fmt(end)} (~${Math.round(60 / dur)} leads/min)`;
+}
+
+function updateDcPosExample() {
+  const start = +$("dc-pos-start").value || 60;
+  const end   = +$("dc-pos-end").value   || 90;
+  const ex    = $("dc-pos-example");
+  if (end <= start) { ex.textContent = "⚠️ Fim deve ser maior que o início."; return; }
+  const ref = new Date(new Date().setHours(20, 0, 0, 0));
+  const fmt = (min) => new Date(ref.getTime() + min * 60000)
+    .toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  ex.textContent = `Ex: aula às 20:00 → follow-up entre ${fmt(start)} e ${fmt(end)}`;
 }
 
 async function saveDispatchConfig() {
-  const start = +$("dc-pre-start").value || 30;
-  const end   = +$("dc-pre-end").value   || 10;
-  if ($("dc-pre-enabled").checked && start <= end)
-    return toast("Início deve ser maior que o fim.", "error");
+  const preStart = +$("dc-pre-start").value || 30;
+  const preEnd   = +$("dc-pre-end").value   || 10;
+  const posStart = +$("dc-pos-start").value || 60;
+  const posEnd   = +$("dc-pos-end").value   || 90;
+
+  if ($("dc-pre-enabled").checked && preStart <= preEnd)
+    return toast("Pré-aula: início deve ser maior que o fim.", "error");
+  if ($("dc-pos-enabled").checked && posEnd <= posStart)
+    return toast("Pós-aula: fim deve ser maior que o início.", "error");
 
   const config = {
     pre: {
-      enabled: $("dc-pre-enabled").checked,
-      window_start_minutes: start,
-      window_end_minutes:   end,
+      enabled:              $("dc-pre-enabled").checked,
+      window_start_minutes: preStart,
+      window_end_minutes:   preEnd,
     },
     pos: {
-      enabled: $("dc-pos-enabled").checked,
-      delay_minutes: +$("dc-pos-delay").value || 75,
+      enabled:              $("dc-pos-enabled").checked,
+      window_start_minutes: posStart,
+      window_end_minutes:   posEnd,
     },
   };
 
