@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Webnário · Disparo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/css/styles.css" />
+  <script src="../config.js"></script>
+  <!-- SheetJS para leitura de Excel/CSV -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <div class="admin-layout">
+    <aside id="sidebar"></aside>
+
+    <div class="main-content">
+      <main class="container stack" style="max-width:860px;">
+
+        <div>
+          <h1 class="mb0">📤 Disparo Manual</h1>
+          <small class="muted">Suba uma lista de leads, configure as mensagens e dispare manualmente com intervalo entre os envios.</small>
+        </div>
+
+        <!-- ===== STEP 1: LISTA ===== -->
+        <div class="card stack">
+          <div class="row spread wrap">
+            <div>
+              <h2 class="mb0">1. Lista de leads</h2>
+              <small class="muted">Excel (.xlsx, .xls) ou CSV. Precisa ter colunas <strong>Nome</strong> e <strong>Telefone</strong>.</small>
+            </div>
+            <label class="btn btn--primary btn--sm" style="cursor:pointer;">
+              📂 Carregar arquivo
+              <input type="file" id="leads-file" accept=".xlsx,.xls,.csv" style="display:none;" />
+            </label>
+          </div>
+
+          <div id="leads-preview" class="hidden">
+            <div class="row spread" style="margin-bottom:.5rem;">
+              <span id="leads-count" style="font-size:.88rem;font-weight:600;"></span>
+              <button class="btn btn--sm btn--ghost" id="leads-clear">Limpar lista</button>
+            </div>
+            <div style="overflow-x:auto;max-height:240px;overflow-y:auto;">
+              <table class="leads-table" style="width:100%;font-size:.83rem;">
+                <thead>
+                  <tr>
+                    <th style="text-align:left;padding:.4rem .6rem;">#</th>
+                    <th style="text-align:left;padding:.4rem .6rem;">Nome</th>
+                    <th style="text-align:left;padding:.4rem .6rem;">Telefone</th>
+                    <th style="text-align:left;padding:.4rem .6rem;">Status</th>
+                  </tr>
+                </thead>
+                <tbody id="leads-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div id="leads-empty" class="empty" style="border-style:dashed;padding:1.5rem;">
+            Nenhum arquivo carregado. Clique em "Carregar arquivo" acima.
+          </div>
+        </div>
+
+        <!-- ===== STEP 2: MENSAGENS ===== -->
+        <div class="card stack">
+          <h2 class="mb0">2. Mensagens</h2>
+          <small class="muted">Adicione uma ou mais variações. O sistema alterna entre elas durante o disparo. Use <code>{nome}</code> no texto.</small>
+
+          <div id="msg-variants" class="stack"></div>
+
+          <div class="card" style="background:var(--bg-soft);padding:.9rem;" id="msg-add-form">
+            <div class="row" style="gap:.8rem;margin-bottom:.6rem;flex-wrap:wrap;">
+              <label class="row" style="gap:.35rem;cursor:pointer;">
+                <input type="radio" name="msg-type" value="text" id="msg-type-text" checked /> Texto
+              </label>
+              <label class="row" style="gap:.35rem;cursor:pointer;">
+                <input type="radio" name="msg-type" value="audio" id="msg-type-audio" /> Áudio
+              </label>
+            </div>
+            <div id="msg-text-wrap" class="field">
+              <textarea id="msg-text" rows="3" style="width:100%;resize:vertical;"
+                placeholder="Ex: Oi {nome}! 🌸 Tudo bem? Tenho uma novidade pra você..."></textarea>
+            </div>
+            <div id="msg-audio-wrap" class="field hidden">
+              <label>Arquivo de áudio (mp3, ogg, m4a)</label>
+              <input type="file" id="msg-audio-file" accept="audio/*,.ogg,.mp3,.wav,.m4a,.aac" />
+              <small id="msg-audio-status" class="muted"></small>
+            </div>
+            <button class="btn btn--sm btn--primary" id="msg-add-btn">+ Adicionar variação</button>
+          </div>
+        </div>
+
+        <!-- ===== STEP 3: INTERVALO ===== -->
+        <div class="card stack">
+          <h2 class="mb0">3. Intervalo entre mensagens</h2>
+          <small class="muted">Tempo de espera entre cada envio. Intervalos maiores reduzem risco de bloqueio do número.</small>
+          <div class="row wrap" style="gap:.6rem;align-items:center;">
+            <select id="interval-preset" class="btn btn--ghost btn--sm" style="padding:.45em .8em;cursor:pointer;">
+              <option value="3000">3 segundos</option>
+              <option value="5000" selected>5 segundos</option>
+              <option value="10000">10 segundos</option>
+              <option value="15000">15 segundos</option>
+              <option value="30000">30 segundos</option>
+              <option value="60000">1 minuto</option>
+              <option value="custom">Personalizado…</option>
+            </select>
+            <div id="interval-custom-wrap" class="row hidden" style="gap:.4rem;align-items:center;">
+              <input type="number" id="interval-custom" min="1" max="3600" value="10"
+                style="width:80px;padding:.4em .6em;" />
+              <span class="muted" style="font-size:.85rem;">segundos</span>
+            </div>
+          </div>
+          <small id="interval-hint" class="muted"></small>
+        </div>
+
+        <!-- ===== STEP 4: DISPARO ===== -->
+        <div class="card stack" id="blast-card">
+          <h2 class="mb0">4. Iniciar disparo</h2>
+          <div id="blast-warnings" class="hidden" style="background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.3);border-radius:8px;padding:.7rem .9rem;font-size:.84rem;color:#f5a623;"></div>
+
+          <div class="row" style="gap:.6rem;flex-wrap:wrap;">
+            <button class="btn btn--primary" id="blast-start-btn" disabled>🚀 Iniciar disparo</button>
+            <button class="btn btn--danger hidden" id="blast-stop-btn">⏹ Parar</button>
+          </div>
+
+          <!-- Progresso -->
+          <div id="blast-progress-wrap" class="hidden">
+            <div class="row spread" style="margin-bottom:.3rem;">
+              <span id="blast-progress-label" style="font-size:.85rem;font-weight:600;"></span>
+              <span id="blast-progress-pct" style="font-size:.85rem;color:var(--text-dim);"></span>
+            </div>
+            <div style="height:8px;background:var(--bg-elev);border-radius:4px;overflow:hidden;">
+              <div id="blast-progress-bar" style="height:100%;width:0%;background:var(--accent);transition:.3s;"></div>
+            </div>
+          </div>
+
+          <!-- Log de envios -->
+          <div id="blast-log" class="hidden" style="max-height:300px;overflow-y:auto;font-size:.82rem;">
+            <div style="font-weight:600;font-size:.8rem;color:var(--text-dim);margin-bottom:.4rem;">Log de envios</div>
+            <div id="blast-log-entries"></div>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <script type="module" src="blast.js"></script>
+</body>
+</html>

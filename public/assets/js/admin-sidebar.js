@@ -16,8 +16,13 @@ export function initSidebar(profile, activeNav = "") {
       </li>
       ${isAdmin ? `
       <li>
+        <a href="blast.html" class="${activeNav === "disparo" ? "active" : ""}">
+          📤 Disparo
+        </a>
+      </li>
+      <li>
         <a href="dispatch.html" class="${activeNav === "disparos" ? "active" : ""}">
-          📢 Disparos
+          📢 Grupos
         </a>
       </li>` : ""}
       <li>
