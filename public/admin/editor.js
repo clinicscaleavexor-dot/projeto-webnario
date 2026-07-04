@@ -1680,6 +1680,7 @@ function openDisparosTab() {
     setupDisparosForm();
   }
   loadDispatchMessages();
+  loadDispatchConfig();
 }
 
 function setupDisparosForm() {
@@ -1696,6 +1697,57 @@ function setupDisparosForm() {
   textRadio.addEventListener("change", toggleType);
   audioRadio.addEventListener("change", toggleType);
   $("dm-add-btn").addEventListener("click", addDispatchMessage);
+
+  $("dc-pre-start").addEventListener("input", updateDcExample);
+  $("dc-pre-end").addEventListener("input",   updateDcExample);
+  $("dc-save-btn").addEventListener("click",  saveDispatchConfig);
+}
+
+function loadDispatchConfig() {
+  const dc = webinar.settings?.dispatch_config || {};
+  $("dc-pre-enabled").checked = dc.pre?.enabled !== false;
+  $("dc-pre-start").value     = dc.pre?.window_start_minutes ?? 30;
+  $("dc-pre-end").value       = dc.pre?.window_end_minutes   ?? 10;
+  $("dc-pos-enabled").checked = dc.pos?.enabled !== false;
+  $("dc-pos-delay").value     = dc.pos?.delay_minutes        ?? 75;
+  updateDcExample();
+}
+
+function updateDcExample() {
+  const start = +$("dc-pre-start").value || 30;
+  const end   = +$("dc-pre-end").value   || 10;
+  const dur   = Math.max(0, start - end);
+  const ex    = $("dc-pre-example");
+  if (dur <= 0) { ex.textContent = "⚠️ Início deve ser maior que o fim."; return; }
+  const d = new Date(new Date().setHours(20, 0, 0, 0));
+  const fmtBefore = (min) => new Date(d.getTime() - min * 60000)
+    .toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  ex.textContent = `Ex: aula às 20:00 → envia de ${fmtBefore(start)} a ${fmtBefore(end)} (~${Math.round(60 / dur)} leads/min)`;
+}
+
+async function saveDispatchConfig() {
+  const start = +$("dc-pre-start").value || 30;
+  const end   = +$("dc-pre-end").value   || 10;
+  if ($("dc-pre-enabled").checked && start <= end)
+    return toast("Início deve ser maior que o fim.", "error");
+
+  const config = {
+    pre: {
+      enabled: $("dc-pre-enabled").checked,
+      window_start_minutes: start,
+      window_end_minutes:   end,
+    },
+    pos: {
+      enabled: $("dc-pos-enabled").checked,
+      delay_minutes: +$("dc-pos-delay").value || 75,
+    },
+  };
+
+  const newSettings = { ...(webinar.settings || {}), dispatch_config: config };
+  const { error } = await supabase.from("webinars").update({ settings: newSettings }).eq("id", WID);
+  if (error) return toast("Erro ao salvar: " + error.message, "error");
+  webinar.settings = newSettings;
+  toast("Configurações de disparo salvas!", "success");
 }
 
 async function loadDispatchMessages() {

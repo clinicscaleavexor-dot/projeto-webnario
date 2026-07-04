@@ -305,6 +305,53 @@
           </div>
           <button class="btn btn--primary btn--sm" id="dm-add-btn">Adicionar variação</button>
         </div>
+
+        <!-- Timing pré-aula -->
+        <div class="card" style="background:var(--bg-soft);padding:.9rem;">
+          <div class="row spread wrap" style="margin-bottom:.6rem;">
+            <div>
+              <h3 class="mb0">⏰ Lembrete pré-aula</h3>
+              <small class="muted">Mensagem enviada antes da aula começar.</small>
+            </div>
+            <label class="row" style="gap:.4rem;cursor:pointer;">
+              <input type="checkbox" id="dc-pre-enabled" checked />
+              <span style="font-size:.88rem;">Ativo</span>
+            </label>
+          </div>
+          <div class="field-row">
+            <div class="field" style="max-width:200px;">
+              <label>Início (min antes da aula)</label>
+              <input type="number" id="dc-pre-start" min="1" max="240" value="30" />
+            </div>
+            <div class="field" style="max-width:200px;">
+              <label>Fim (min antes da aula)</label>
+              <input type="number" id="dc-pre-end" min="0" max="239" value="10" />
+            </div>
+          </div>
+          <small id="dc-pre-example" class="muted"></small>
+        </div>
+
+        <!-- Timing pós-aula -->
+        <div class="card" style="background:var(--bg-soft);padding:.9rem;">
+          <div class="row spread wrap" style="margin-bottom:.6rem;">
+            <div>
+              <h3 class="mb0">✅ Follow-up pós-aula</h3>
+              <small class="muted">Mensagem enviada depois da aula.</small>
+            </div>
+            <label class="row" style="gap:.4rem;cursor:pointer;">
+              <input type="checkbox" id="dc-pos-enabled" checked />
+              <span style="font-size:.88rem;">Ativo</span>
+            </label>
+          </div>
+          <div class="field" style="max-width:220px;">
+            <label>Enviar X minutos após a aula</label>
+            <input type="number" id="dc-pos-delay" min="1" max="1440" value="75" />
+          </div>
+        </div>
+
+        <button class="btn btn--primary btn--sm" id="dc-save-btn" style="align-self:flex-start;">
+          Salvar configurações de disparo
+        </button>
       </div>
     </section>
 
