@@ -110,14 +110,15 @@ function setupTabs() {
   document.querySelectorAll(".tab").forEach((tab) => {
     tab.addEventListener("click", () => {
       activateTab(tab.dataset.tab);
-      if (tab.dataset.tab === "leads") openLeadsTab();
+      if (tab.dataset.tab === "leads")    openLeadsTab();
+      if (tab.dataset.tab === "disparos") openDisparosTab();
     });
   });
-  // Ativa aba via parâmetro ?tab= na URL (ex: ?tab=leads)
   const tabParam = new URLSearchParams(location.search).get("tab");
   if (tabParam) {
     activateTab(tabParam);
-    if (tabParam === "leads") openLeadsTab();
+    if (tabParam === "leads")    openLeadsTab();
+    if (tabParam === "disparos") openDisparosTab();
   }
 }
 
@@ -1666,4 +1667,167 @@ async function deleteLead(leadId, btn) {
   }
   toast("Lead removido.", "success");
   await loadLeads();
+}
+
+// =====================================================================
+//  ABA DISPAROS — mensagens por webinário
+// =====================================================================
+let dispatchMsgReady = false;
+
+function openDisparosTab() {
+  if (!dispatchMsgReady) {
+    dispatchMsgReady = true;
+    setupDisparosForm();
+  }
+  loadDispatchMessages();
+}
+
+function setupDisparosForm() {
+  const textRadio  = $("dm-type-text");
+  const audioRadio = $("dm-type-audio");
+  const textWrap   = $("dm-text-wrap");
+  const audioWrap  = $("dm-audio-wrap");
+
+  function toggleType() {
+    const isAudio = audioRadio.checked;
+    textWrap.classList.toggle("hidden", isAudio);
+    audioWrap.classList.toggle("hidden", !isAudio);
+  }
+  textRadio.addEventListener("change", toggleType);
+  audioRadio.addEventListener("change", toggleType);
+  $("dm-add-btn").addEventListener("click", addDispatchMessage);
+}
+
+async function loadDispatchMessages() {
+  const host = $("dispatch-msg-list");
+  host.innerHTML = `<p class="muted">Carregando...</p>`;
+
+  const { data, error } = await supabase
+    .from("webinar_dispatch_messages")
+    .select("*")
+    .eq("webinar_id", WID)
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (error) { host.innerHTML = `<div class="empty">Erro: ${escapeHtml(error.message)}</div>`; return; }
+
+  if (!data.length) {
+    host.innerHTML = `<div class="empty" style="border-style:dashed;">Nenhuma mensagem cadastrada ainda.<br>Adicione uma variação abaixo.</div>`;
+    return;
+  }
+
+  host.innerHTML = "";
+  data.forEach((msg, i) => {
+    const card = document.createElement("div");
+    card.className = "sub-item";
+    card.style.cssText = "display:flex;align-items:flex-start;gap:.8rem;";
+
+    const typeBadge = msg.type === "audio"
+      ? `<span class="tag" style="background:rgba(124,92,255,.2);color:#a78bfa;flex-shrink:0;">🎙️ Áudio</span>`
+      : `<span class="tag" style="background:rgba(43,182,115,.2);color:#4ade80;flex-shrink:0;">💬 Texto</span>`;
+
+    const preview = msg.type === "audio"
+      ? `<a href="${escapeHtml(msg.content)}" target="_blank" style="font-size:.82rem;color:var(--text-dim);">Ouvir áudio ↗</a>`
+      : `<span style="font-size:.84rem;color:var(--text-dim);white-space:pre-wrap;word-break:break-word;">${escapeHtml(msg.content.length > 120 ? msg.content.slice(0,120) + "…" : msg.content)}</span>`;
+
+    card.innerHTML = `
+      <div style="flex:1;min-width:0;">
+        <div class="row" style="gap:.5rem;margin-bottom:.35rem;flex-wrap:wrap;">
+          ${typeBadge}
+          <span style="font-size:.78rem;color:var(--text-mut);">Variação ${i + 1}</span>
+          <span class="tag" style="background:${msg.active ? "rgba(43,182,115,.15)" : "rgba(100,100,100,.15)"};color:${msg.active ? "#4ade80" : "var(--text-dim)"};">
+            ${msg.active ? "● Ativa" : "○ Pausada"}
+          </span>
+        </div>
+        ${preview}
+      </div>
+      <div class="row" style="gap:.35rem;flex-shrink:0;">
+        <button class="btn btn--sm btn--ghost" data-act="toggle" data-id="${msg.id}" data-active="${msg.active}">
+          ${msg.active ? "Pausar" : "Ativar"}
+        </button>
+        <button class="btn btn--sm btn--danger" data-act="del" data-id="${msg.id}">×</button>
+      </div>`;
+
+    card.querySelector('[data-act="toggle"]').addEventListener("click", (e) => {
+      const btn = e.currentTarget;
+      toggleDispatchMessage(btn.dataset.id, btn.dataset.active === "true");
+    });
+    card.querySelector('[data-act="del"]').addEventListener("click", (e) => {
+      deleteDispatchMessage(e.currentTarget.dataset.id);
+    });
+    host.appendChild(card);
+  });
+}
+
+async function addDispatchMessage() {
+  const isAudio = $("dm-type-audio").checked;
+  const btn = $("dm-add-btn");
+  btn.disabled = true; btn.textContent = "Salvando...";
+
+  let content = "";
+  try {
+    if (isAudio) {
+      const file = $("dm-audio-file").files[0];
+      if (!file) { toast("Selecione um arquivo de áudio.", "error"); return; }
+      $("dm-audio-status").textContent = "Enviando áudio...";
+      content = await uploadDispatchAudio(file);
+      $("dm-audio-status").textContent = "✓ Enviado";
+      $("dm-audio-file").value = "";
+    } else {
+      content = $("dm-text").value.trim();
+      if (!content) { toast("Digite o texto da mensagem.", "error"); return; }
+    }
+
+    const { data: existing } = await supabase
+      .from("webinar_dispatch_messages")
+      .select("sort_order")
+      .eq("webinar_id", WID)
+      .order("sort_order", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const { error } = await supabase.from("webinar_dispatch_messages").insert({
+      webinar_id: WID,
+      type: isAudio ? "audio" : "text",
+      content,
+      sort_order: (existing?.sort_order ?? -1) + 1,
+    });
+    if (error) throw new Error(error.message);
+
+    toast("Variação adicionada!", "success");
+    $("dm-text").value = "";
+    await loadDispatchMessages();
+  } catch (err) {
+    toast("Erro: " + err.message, "error");
+  } finally {
+    btn.disabled = false; btn.textContent = "Adicionar variação";
+  }
+}
+
+async function toggleDispatchMessage(id, currentActive) {
+  const { error } = await supabase
+    .from("webinar_dispatch_messages")
+    .update({ active: !currentActive })
+    .eq("id", id);
+  if (error) return toast("Erro: " + error.message, "error");
+  await loadDispatchMessages();
+}
+
+async function deleteDispatchMessage(id) {
+  if (!confirm("Remover esta variação?")) return;
+  const { error } = await supabase.from("webinar_dispatch_messages").delete().eq("id", id);
+  if (error) return toast("Erro: " + error.message, "error");
+  toast("Variação removida.", "success");
+  await loadDispatchMessages();
+}
+
+async function uploadDispatchAudio(file) {
+  const ext  = (file.name.split(".").pop() || "mp3").toLowerCase();
+  const path = `${WID}/${Date.now()}.${ext}`;
+  const { error } = await supabase.storage
+    .from("webinar-dispatch")
+    .upload(path, file, { upsert: false, contentType: file.type });
+  if (error) throw new Error(error.message);
+  const { data } = supabase.storage.from("webinar-dispatch").getPublicUrl(path);
+  return data.publicUrl;
 }

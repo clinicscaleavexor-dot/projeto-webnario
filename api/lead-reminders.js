@@ -16,6 +16,14 @@ function sbHeaders() {
   };
 }
 
+async function sbQuery(table, qs) {
+  const url = `${process.env.SUPABASE_URL}/rest/v1/${table}?${qs}`;
+  const res = await fetch(url, { headers: sbHeaders() });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`${table}: ${res.status} ${text}`);
+  return JSON.parse(text);
+}
+
 async function sbRpc(fn, params) {
   const url = `${process.env.SUPABASE_URL}/rest/v1/rpc/${fn}`;
   const res = await fetch(url, {
@@ -124,6 +132,22 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({ ok: false, rpc_error: e.message, window: { preMin, preMax, posMin, posMax } });
   }
 
+  // Busca mensagens por webinário (permite variação por webinário)
+  const webinarIds = [...new Set(leads.map(l => l.webinar_id).filter(Boolean))];
+  const webinarMessages = {};
+  if (webinarIds.length) {
+    try {
+      const rows = await sbQuery(
+        "webinar_dispatch_messages",
+        `webinar_id=in.(${webinarIds.join(",")})&active=eq.true&order=sort_order.asc,created_at.asc`
+      );
+      for (const r of rows) {
+        if (!webinarMessages[r.webinar_id]) webinarMessages[r.webinar_id] = [];
+        webinarMessages[r.webinar_id].push(r);
+      }
+    } catch {}
+  }
+
   const results = { pre: 0, pos: 0, errors: 0, log: [] };
   let sent = 0;
 
@@ -159,25 +183,43 @@ module.exports = async function handler(req, res) {
     }
 
     // Envia WhatsApp somente após garantir o claim no banco
-    const watchUrl = buildWatchUrl(lead.webinar_slug, lead);
 
-    let text;
-    if (type === "pre" && messagePool.length > 0) {
-      const idx = (lead.rotation_index || 0) % messagePool.length;
-      const template = messagePool[idx];
+    // Mensagens por webinário têm prioridade; fallback pro pool global
+    const wMsgs = type === "pre" ? (webinarMessages[lead.webinar_id] || []) : [];
+    const rotIdx = Number(lead.rotation_index) || 0;
+
+    let useAudio = false;
+    let audioUrl = "";
+    let text = "";
+
+    if (wMsgs.length > 0) {
+      const msg = wMsgs[rotIdx % wMsgs.length];
+      if (msg.type === "audio") {
+        useAudio = true;
+        audioUrl = msg.content;
+      } else {
+        text = msg.content
+          .replace(/\{nome\}/gi, lead.name)
+          .replace(/\{link\}/gi, watchUrl);
+      }
+    } else if (type === "pre" && messagePool.length > 0) {
+      const template = messagePool[rotIdx % messagePool.length];
       text = template
         .replace(/\{nome\}/gi, lead.name)
         .replace(/\{link\}/gi, watchUrl);
     } else if (type === "pre") {
       text = `🌸 Oi, ${lead.name}! Tudo bem?\n\nSua aula começa em breve! 💖\n\nJá pode clicar no link abaixo para entrar na transmissão:\n\n👉 ${watchUrl}\n\nTe esperamos lá! ✨`;
     } else {
-      text = `🌸 Oi, ${lead.name}! Tudo bem?\n\nQueria saber se você conseguiu assistir à nossa aula hoje! 💖\n\nConseguiu assistir certinho? Me conta! 😊`;
+      // pos-aula: modo áudio global se configurado
+      if (dispatchMode === "text_pre_audio_pos" && followupAudioUrl) {
+        useAudio = true; audioUrl = followupAudioUrl;
+      } else {
+        text = `🌸 Oi, ${lead.name}! Tudo bem?\n\nQueria saber se você conseguiu assistir à nossa aula hoje! 💖\n\nConseguiu assistir certinho? Me conta! 😊`;
+      }
     }
 
-    // Modo "text_pre_audio_pos": follow-up pós-aula vai como nota de voz
-    const useAudio = type === "pos" && dispatchMode === "text_pre_audio_pos" && followupAudioUrl;
     const { ok, status, error: sendErr } = useAudio
-      ? await sendWhatsAppAudio(lead.phone, followupAudioUrl)
+      ? await sendWhatsAppAudio(lead.phone, audioUrl)
       : await sendWhatsApp(lead.phone, text);
 
     if (ok) {
