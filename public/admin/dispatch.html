@@ -25,6 +25,45 @@
 
       <main class="container stack" style="margin-top:1.5rem;">
 
+        <!-- ==================== INSTÂNCIAS WHATSAPP ==================== -->
+        <div class="card stack" id="instances-card">
+          <div class="row spread wrap">
+            <div>
+              <h2 class="mb0">📱 Instâncias WhatsApp</h2>
+              <small class="muted">Cada conta usa sua própria instância Mega API. Os disparos de cada usuário são enviados pela instância vinculada a ele.</small>
+            </div>
+          </div>
+
+          <div id="instances-list"><p class="muted">Carregando...</p></div>
+
+          <!-- Formulário de nova instância -->
+          <div class="card" style="background:var(--bg-soft);padding:.9rem;">
+            <h3 class="mb0" style="font-size:.95rem;">+ Nova instância</h3>
+            <div class="field-row" style="margin-top:.7rem;">
+              <div class="field">
+                <label>Nome</label>
+                <input id="inst-name" placeholder='ex: "Instância Principal"' />
+              </div>
+              <div class="field">
+                <label>Usuário (dono)</label>
+                <select id="inst-owner">
+                  <option value="">Selecione o usuário...</option>
+                </select>
+              </div>
+            </div>
+            <div class="field">
+              <label>URL base da instância</label>
+              <input id="inst-url" placeholder="https://apinocode01.megaapi.com.br/rest/sendMessage/megacode-XXXXXX" />
+              <small class="muted">Cole a URL até o ID da instância, sem /text ou /mediaUrl no final.</small>
+            </div>
+            <div class="field" style="max-width:280px;">
+              <label>Token</label>
+              <input id="inst-token" placeholder="ex: M6hpeUt7tF1" />
+            </div>
+            <button class="btn btn--primary btn--sm" id="inst-add-btn">Adicionar instância</button>
+          </div>
+        </div>
+
         <!-- ==================== POOL DE MENSAGENS ==================== -->
         <div class="card stack" id="msg-pool-card">
           <div class="row spread wrap">

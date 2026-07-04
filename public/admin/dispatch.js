@@ -31,6 +31,9 @@ let editingId = null; // ID da config sendo editada
   $("log-close").addEventListener("click", closeLogModal);
   $("log-backdrop").addEventListener("click", closeLogModal);
 
+  // Instâncias WhatsApp
+  $("inst-add-btn").addEventListener("click", addInstance);
+
   // Pool de mensagens
   $("pool-add-btn").addEventListener("click", addPoolMessage);
   $("pool-save-btn").addEventListener("click", saveMessagePool);
@@ -40,6 +43,7 @@ let editingId = null; // ID da config sendo editada
   $("dw-start").addEventListener("input", updateWindowExample);
   $("dw-end").addEventListener("input", updateWindowExample);
 
+  await loadInstances();
   await loadDispatchGlobalSettings();
   await loadWebinars();
   await loadDispatches();
@@ -375,6 +379,128 @@ async function openLogModal(dispatchId, name) {
 function closeLogModal() {
   $("log-modal").classList.add("hidden");
   $("log-modal").style.display = "none";
+}
+
+// =====================================================================
+//  INSTÂNCIAS WHATSAPP
+// =====================================================================
+let allProfiles = [];
+
+async function loadInstances() {
+  // Carrega perfis de usuários para o dropdown de dono
+  const { data: profs } = await supabase
+    .from("profiles")
+    .select("id, name")
+    .order("name");
+  allProfiles = profs || [];
+
+  const sel = $("inst-owner");
+  sel.innerHTML = '<option value="">Selecione o usuário...</option>';
+  for (const p of allProfiles) {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    opt.textContent = p.name || p.id.slice(0, 8);
+    sel.appendChild(opt);
+  }
+
+  // Carrega instâncias existentes
+  const { data, error } = await supabase
+    .from("dispatch_numbers")
+    .select("*")
+    .order("sort_order", { ascending: true });
+
+  const host = $("instances-list");
+  if (error) { host.innerHTML = `<p class="muted">Erro: ${escapeHtml(error.message)}</p>`; return; }
+  if (!data?.length) {
+    host.innerHTML = `<p class="muted">Nenhuma instância cadastrada.</p>`;
+    return;
+  }
+
+  host.innerHTML = "";
+  for (const inst of data) {
+    const owner = allProfiles.find(p => p.id === inst.owner_id);
+    const card = document.createElement("div");
+    card.className = "sub-item";
+    card.style.cssText = "display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;";
+    card.innerHTML = `
+      <div style="flex:1;min-width:0;">
+        <div class="row" style="gap:.5rem;flex-wrap:wrap;margin-bottom:.25rem;">
+          <strong style="font-size:.9rem;">${escapeHtml(inst.name)}</strong>
+          <span class="tag" style="background:${inst.active ? "rgba(43,182,115,.15)" : "rgba(100,100,100,.15)"};color:${inst.active ? "#4ade80" : "var(--text-dim)"};">
+            ${inst.active ? "● Ativa" : "○ Pausada"}
+          </span>
+        </div>
+        <div style="font-size:.78rem;color:var(--text-dim);">
+          👤 ${owner ? escapeHtml(owner.name || "—") : "Sem dono"} &nbsp;·&nbsp;
+          <code style="font-size:.75rem;">${escapeHtml(inst.api_url)}</code>
+        </div>
+      </div>
+      <div class="row" style="gap:.35rem;">
+        <button class="btn btn--sm btn--ghost" data-act="toggle" data-id="${inst.id}" data-active="${inst.active}">
+          ${inst.active ? "Pausar" : "Ativar"}
+        </button>
+        <button class="btn btn--sm btn--danger" data-act="del" data-id="${inst.id}" data-name="${escapeHtml(inst.name)}">×</button>
+      </div>`;
+
+    card.querySelector('[data-act="toggle"]').addEventListener("click", e => {
+      const b = e.currentTarget;
+      toggleInstance(b.dataset.id, b.dataset.active === "true");
+    });
+    card.querySelector('[data-act="del"]').addEventListener("click", e => {
+      const b = e.currentTarget;
+      deleteInstance(b.dataset.id, b.dataset.name);
+    });
+    host.appendChild(card);
+  }
+}
+
+async function addInstance() {
+  const name    = $("inst-name").value.trim();
+  const ownerId = $("inst-owner").value;
+  const url     = $("inst-url").value.trim().replace(/\/(text|mediaUrl)$/, "");
+  const token   = $("inst-token").value.trim();
+
+  if (!name)    return toast("Informe o nome da instância.", "error");
+  if (!ownerId) return toast("Selecione o usuário dono.", "error");
+  if (!url)     return toast("Informe a URL base da instância.", "error");
+  if (!token)   return toast("Informe o token.", "error");
+
+  const btn = $("inst-add-btn");
+  btn.disabled = true; btn.textContent = "Salvando...";
+
+  const { data: existing } = await supabase
+    .from("dispatch_numbers")
+    .select("sort_order")
+    .eq("owner_id", ownerId)
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const { error } = await supabase.from("dispatch_numbers").insert({
+    name, api_url: url, api_token: token, active: true,
+    sort_order: (existing?.sort_order ?? -1) + 1,
+    owner_id: ownerId,
+  });
+
+  btn.disabled = false; btn.textContent = "Adicionar instância";
+  if (error) return toast("Erro: " + error.message, "error");
+
+  $("inst-name").value = ""; $("inst-url").value = ""; $("inst-token").value = "";
+  $("inst-owner").value = "";
+  toast("Instância adicionada!", "success");
+  await loadInstances();
+}
+
+async function toggleInstance(id, current) {
+  await supabase.from("dispatch_numbers").update({ active: !current }).eq("id", id);
+  await loadInstances();
+}
+
+async function deleteInstance(id, name) {
+  if (!confirm(`Remover a instância "${name}"?`)) return;
+  await supabase.from("dispatch_numbers").delete().eq("id", id);
+  toast("Instância removida.", "success");
+  await loadInstances();
 }
 
 // =====================================================================

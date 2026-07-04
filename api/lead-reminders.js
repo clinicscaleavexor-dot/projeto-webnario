@@ -44,13 +44,15 @@ function buildWatchUrl(slug, lead) {
   return `${base}/watch.html?w=${encodeURIComponent(slug)}&${param}`;
 }
 
-async function sendWhatsApp(phone, text) {
+async function sendWhatsApp(phone, text, baseUrl, token) {
   const digits = phone.replace(/\D/g, "");
-  const to = (digits.startsWith("55") ? digits : "55" + digits) + "@c.us";
+  const to  = (digits.startsWith("55") ? digits : "55" + digits) + "@c.us";
+  const url = (baseUrl || MEGA_URL.replace(/\/text$/, "")) + "/text";
+  const tok = token || MEGA_TOKEN;
   try {
-    const res = await fetch(MEGA_URL, {
+    const res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${MEGA_TOKEN}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
       body: JSON.stringify({ messageData: { to, text } }),
     });
     return { ok: res.ok, status: res.status };
@@ -59,18 +61,20 @@ async function sendWhatsApp(phone, text) {
   }
 }
 
-async function sendWhatsAppAudio(phone, audioUrl) {
+async function sendWhatsAppAudio(phone, audioUrl, baseUrl, token) {
   const digits = phone.replace(/\D/g, "");
-  const to = (digits.startsWith("55") ? digits : "55" + digits) + "@c.us";
+  const to  = (digits.startsWith("55") ? digits : "55" + digits) + "@c.us";
+  const url = (baseUrl || MEGA_MEDIA_URL.replace(/\/mediaUrl$/, "")) + "/mediaUrl";
+  const tok = token || MEGA_TOKEN;
   const ext = audioUrl.split(".").pop().split("?")[0].toLowerCase();
   const mimeType = ext === "ogg" ? "audio/ogg; codecs=opus"
     : ext === "mp3" ? "audio/mpeg"
     : ext === "wav" ? "audio/wav"
     : "audio/mp4";
   try {
-    const res = await fetch(MEGA_MEDIA_URL, {
+    const res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${MEGA_TOKEN}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
       body: JSON.stringify({ messageData: { to, url: audioUrl, fileName: `audio.${ext}`, type: "ptt", mimeType, caption: "" } }),
     });
     return { ok: res.ok, status: res.status };
@@ -132,18 +136,39 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({ ok: false, rpc_error: e.message, window: { preMin, preMax, posMin, posMax } });
   }
 
-  // Busca mensagens por webinário (permite variação por webinário)
+  // Busca mensagens e owner por webinário
   const webinarIds = [...new Set(leads.map(l => l.webinar_id).filter(Boolean))];
   const webinarMessages = {};
+  const webinarOwner = {}; // webinar_id -> owner_id
   if (webinarIds.length) {
     try {
-      const rows = await sbQuery(
-        "webinar_dispatch_messages",
-        `webinar_id=in.(${webinarIds.join(",")})&active=eq.true&order=sort_order.asc,created_at.asc`
-      );
-      for (const r of rows) {
+      const [msgRows, webRows] = await Promise.all([
+        sbQuery(
+          "webinar_dispatch_messages",
+          `webinar_id=in.(${webinarIds.join(",")})&active=eq.true&order=sort_order.asc,created_at.asc`
+        ),
+        sbQuery("webinars", `id=in.(${webinarIds.join(",")})&select=id,owner_id`),
+      ]);
+      for (const r of msgRows) {
         if (!webinarMessages[r.webinar_id]) webinarMessages[r.webinar_id] = [];
         webinarMessages[r.webinar_id].push(r);
+      }
+      for (const w of webRows) webinarOwner[w.id] = w.owner_id;
+    } catch {}
+  }
+
+  // Busca instâncias WhatsApp por dono do webinário
+  const ownerIds = [...new Set(Object.values(webinarOwner).filter(Boolean))];
+  const ownerInstances = {}; // owner_id -> [{api_url, api_token}]
+  if (ownerIds.length) {
+    try {
+      const instRows = await sbQuery(
+        "dispatch_numbers",
+        `owner_id=in.(${ownerIds.join(",")})&active=eq.true&order=sort_order.asc`
+      );
+      for (const inst of instRows) {
+        if (!ownerInstances[inst.owner_id]) ownerInstances[inst.owner_id] = [];
+        ownerInstances[inst.owner_id].push(inst);
       }
     } catch {}
   }
@@ -218,9 +243,16 @@ module.exports = async function handler(req, res) {
       }
     }
 
+    // Resolve instância do dono do webinário (fallback: hardcoded)
+    const ownerId   = webinarOwner[lead.webinar_id];
+    const instances = ownerId ? (ownerInstances[ownerId] || []) : [];
+    const inst      = instances.length ? instances[rotIdx % instances.length] : null;
+    const instBase  = inst ? inst.api_url.replace(/\/$/, "") : null;
+    const instToken = inst ? inst.api_token : null;
+
     const { ok, status, error: sendErr } = useAudio
-      ? await sendWhatsAppAudio(lead.phone, audioUrl)
-      : await sendWhatsApp(lead.phone, text);
+      ? await sendWhatsAppAudio(lead.phone, audioUrl, instBase, instToken)
+      : await sendWhatsApp(lead.phone, text, instBase, instToken);
 
     if (ok) {
       results[type]++;
