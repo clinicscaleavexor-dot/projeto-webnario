@@ -10,11 +10,13 @@ export function initSidebar(profile, activeNav) {
   // Monta links de admin separadamente para evitar template literals aninhados
   let adminLinks = "";
   if (isAdmin) {
-    const dClass   = a === "disparo"  ? "active" : "";
-    const grpClass = a === "disparos" ? "active" : "";
+    const dClass   = a === "disparo"    ? "active" : "";
+    const grpClass = a === "disparos"   ? "active" : "";
+    const finClass = a === "financeiro" ? "active" : "";
     adminLinks =
-      '<li><a href="blast.html" class="' + dClass + '">📤 Disparo</a></li>' +
-      '<li><a href="dispatch.html" class="' + grpClass + '">📢 Grupos</a></li>';
+      '<li><a href="blast.html" class="'      + dClass   + '">📤 Disparo</a></li>' +
+      '<li><a href="dispatch.html" class="'   + grpClass + '">📢 Grupos</a></li>' +
+      '<li><a href="financeiro.html" class="' + finClass + '">💰 Financeiro</a></li>';
   }
 
   const wClass = a === "webinarios" ? "active" : "";

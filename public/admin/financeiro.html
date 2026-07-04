@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Webnário · Financeiro</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/css/styles.css" />
+  <script src="../config.js"></script>
+  <style>
+    .fin-table { width:100%; border-collapse:collapse; font-size:.88rem; }
+    .fin-table th { text-align:left; padding:.4rem .6rem; color:var(--text-dim); font-weight:600; border-bottom:1px solid var(--border); }
+    .fin-table td { padding:.45rem .6rem; border-bottom:1px solid rgba(255,255,255,.05); vertical-align:middle; }
+    .fin-table tr:last-child td { border-bottom:none; }
+    .badge-paid   { background:rgba(43,182,115,.18); color:#4ade80; padding:.15rem .55rem; border-radius:99px; font-size:.76rem; font-weight:600; }
+    .badge-pend   { background:rgba(251,191,36,.18);  color:#fbbf24; padding:.15rem .55rem; border-radius:99px; font-size:.76rem; font-weight:600; }
+    .record-card  { border:1px solid var(--border); border-radius:10px; overflow:hidden; margin-bottom:.7rem; }
+    .record-header{ display:flex; align-items:center; gap:1rem; padding:.75rem 1rem; cursor:pointer; user-select:none; background:var(--bg-elev); }
+    .record-header:hover { background:rgba(255,255,255,.04); }
+    .record-body  { padding:.75rem 1rem; border-top:1px solid var(--border); display:none; }
+    .record-body.open { display:block; }
+    .lead-suggestions { position:absolute; z-index:50; background:var(--bg-elev); border:1px solid var(--border); border-radius:8px; width:100%; max-height:220px; overflow-y:auto; box-shadow:0 8px 24px rgba(0,0,0,.35); }
+    .lead-suggestions li { list-style:none; padding:.55rem .85rem; cursor:pointer; font-size:.88rem; }
+    .lead-suggestions li:hover { background:rgba(124,92,255,.15); }
+    #fin-search-wrap { position:relative; }
+  </style>
+</head>
+<body>
+  <div class="admin-layout">
+    <aside id="sidebar"></aside>
+
+    <div class="main-content">
+      <main class="container stack" style="margin-top:1.5rem;">
+
+        <!-- ===== NOVO CLIENTE ===== -->
+        <div class="card stack">
+          <div>
+            <h2 class="mb0">💰 Novo cliente</h2>
+            <small class="muted">Puxe um lead existente ou preencha manualmente.</small>
+          </div>
+
+          <!-- Busca de lead -->
+          <div class="field" id="fin-search-wrap">
+            <label>Buscar lead (nome ou telefone)</label>
+            <input id="fin-search" placeholder="Digite para buscar…" autocomplete="off" />
+            <ul id="fin-suggestions" class="lead-suggestions" style="display:none;"></ul>
+          </div>
+
+          <input type="hidden" id="fin-lead-id" />
+
+          <div class="field-row">
+            <div class="field">
+              <label>Nome do cliente</label>
+              <input id="fin-name" placeholder="Nome completo" />
+            </div>
+            <div class="field" style="max-width:220px;">
+              <label>Telefone</label>
+              <input id="fin-phone" placeholder="(11) 99999-9999" />
+            </div>
+          </div>
+
+          <div class="field-row">
+            <div class="field" style="max-width:180px;">
+              <label>Valor total (R$)</label>
+              <input type="number" id="fin-amount" min="0.01" step="0.01" placeholder="0,00" />
+            </div>
+            <div class="field" style="max-width:180px;">
+              <label>Data da 1ª parcela</label>
+              <input type="date" id="fin-date" />
+            </div>
+            <div class="field" style="max-width:140px;">
+              <label>Nº de parcelas</label>
+              <input type="number" id="fin-installments" min="1" max="60" value="1" />
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Observações (opcional)</label>
+            <input id="fin-notes" placeholder="Ex: produto X, desconto Y…" />
+          </div>
+
+          <!-- Pré-visualização das parcelas -->
+          <div id="fin-preview" style="display:none;">
+            <p style="font-size:.85rem;font-weight:600;margin-bottom:.4rem;color:var(--text-dim);">Pré-visualização das parcelas</p>
+            <table class="fin-table">
+              <thead>
+                <tr><th>#</th><th>Vencimento</th><th>Valor</th></tr>
+              </thead>
+              <tbody id="fin-preview-body"></tbody>
+            </table>
+          </div>
+
+          <button class="btn btn--primary" id="fin-save" style="align-self:flex-start;">Salvar cliente</button>
+        </div>
+
+        <!-- ===== LISTA DE CLIENTES ===== -->
+        <div class="card stack">
+          <div class="row spread wrap">
+            <div>
+              <h2 class="mb0">📋 Clientes cadastrados</h2>
+              <small class="muted">Clique em um cliente para ver e gerenciar as parcelas.</small>
+            </div>
+            <div style="display:flex;gap:.5rem;align-items:center;">
+              <input id="fin-filter" placeholder="Filtrar por nome…" style="padding:.35rem .7rem;border-radius:6px;border:1px solid var(--border);background:var(--bg-soft);color:var(--text);font-size:.85rem;" />
+            </div>
+          </div>
+
+          <div id="fin-summary" style="display:flex;gap:1.2rem;flex-wrap:wrap;font-size:.85rem;color:var(--text-dim);"></div>
+
+          <div id="fin-list">
+            <p class="muted">Carregando…</p>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <script type="module" src="financeiro.js"></script>
+</body>
+</html>
