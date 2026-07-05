@@ -1,5 +1,11 @@
 {
   "outputDirectory": "public",
+  "crons": [
+    {
+      "path": "/api/lead-reminders",
+      "schedule": "* * * * *"
+    }
+  ],
   "functions": {
     "api/dispatch.js": { "maxDuration": 30 },
     "api/lead-reminders.js": { "maxDuration": 30 }

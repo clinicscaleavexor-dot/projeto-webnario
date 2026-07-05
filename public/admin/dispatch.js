@@ -28,6 +28,7 @@ let editingId = null; // ID da config sendo editada
   $("f-webinar").addEventListener("change", onWebinarChange);
   $("monitor-toggle").addEventListener("click", toggleMonitor);
   $("fire-now-btn").addEventListener("click", () => checkAndFire(true));
+  $("reminders-now-btn").addEventListener("click", fireRemindersNow);
   $("log-close").addEventListener("click", closeLogModal);
   $("log-backdrop").addEventListener("click", closeLogModal);
 
@@ -605,6 +606,51 @@ async function saveWindow() {
   globalSettings.lead_window_end_minutes   = String(end);
   toast("Janela de envio salva!", "success");
   updateWindowExample();
+}
+
+// =====================================================================
+//  LEMBRETES WHATSAPP (lead-reminders)
+// =====================================================================
+async function fireRemindersNow() {
+  const btn    = $("reminders-now-btn");
+  const status = $("reminders-status");
+  const secret = (window.APP_CONFIG || {}).DISPATCH_SECRET || "";
+
+  btn.disabled = true;
+  btn.textContent = "Verificando…";
+  status.textContent = "";
+
+  try {
+    const res = await fetch("/api/lead-reminders", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-dispatch-secret": secret,
+      },
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      status.textContent = `Erro ${res.status}: ${data.error || "falha"}`;
+      toast("Erro ao disparar lembretes: " + (data.error || res.status), "error");
+      return;
+    }
+    const total = (data.pre_sent || 0) + (data.pos_sent || 0) + (data.scheduled_sent || 0);
+    status.textContent = total > 0
+      ? `✓ ${total} lembrete(s) enviado(s) — pré: ${data.pre_sent}, pós: ${data.pos_sent}`
+      : `Sem lembretes pendentes agora (encontrou ${data.found || 0} leads)`;
+    toast(total > 0 ? `${total} lembrete(s) enviado(s)!` : "Nenhum lembrete pendente agora.", "success");
+
+    if (data.errors > 0) {
+      toast(`${data.errors} erro(s) no envio. Veja o console.`, "error");
+      console.warn("lead-reminders log:", data.log);
+    }
+  } catch (e) {
+    status.textContent = "Erro de conexão.";
+    toast("Erro de conexão com o servidor.", "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "💬 Lembretes agora";
+  }
 }
 
 // =====================================================================
