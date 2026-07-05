@@ -1782,6 +1782,100 @@ function setupDisparosForm() {
   $("dc-pos-start").addEventListener("input", updateDcPosExample);
   $("dc-pos-end").addEventListener("input",   updateDcPosExample);
   $("dc-save-btn").addEventListener("click",  saveDispatchConfig);
+
+  $("test-send-btn").addEventListener("click",   testDisparoSend);
+  $("test-status-btn").addEventListener("click", testDisparoStatus);
+  loadTestInstanceInfo();
+}
+
+async function loadTestInstanceInfo() {
+  const inst = await getWebinarInstance();
+  const el = $("test-instance-info");
+  if (inst) {
+    el.innerHTML = `<strong>Instância ativa:</strong> <code>${inst.api_url}</code> &nbsp;|&nbsp; Token: <code>${inst.api_token}</code>`;
+    el.style.borderLeft = "3px solid var(--success, #22c55e)";
+  } else {
+    el.innerHTML = `<strong>Fallback hardcoded:</strong> <code>${MANUAL_MEGA_BASE}</code> &nbsp;|&nbsp; Token: <code>${MANUAL_MEGA_TOKEN}</code>`;
+    el.style.borderLeft = "3px solid var(--warning, #f59e0b)";
+  }
+}
+
+function showTestResult(label, status, body, ok) {
+  const el = $("test-result");
+  const pre = $("test-result-pre");
+  el.classList.remove("hidden");
+  const color = ok ? "#22c55e" : "#ef4444";
+  let formatted;
+  try { formatted = JSON.stringify(JSON.parse(body), null, 2); } catch { formatted = body; }
+  pre.style.borderLeft = `3px solid ${color}`;
+  pre.textContent = `${label}\nHTTP ${status}\n\n${formatted}`;
+}
+
+async function testDisparoSend() {
+  const phone   = $("test-phone").value.trim();
+  const message = $("test-message").value.trim();
+  if (!phone)   { toast("Informe o número de destino.", "error"); return; }
+  if (!message) { toast("Informe a mensagem de teste.", "error"); return; }
+
+  const btn = $("test-send-btn");
+  btn.disabled = true; btn.textContent = "Enviando...";
+
+  try {
+    const inst   = await getWebinarInstance();
+    const base   = inst ? inst.api_url.replace(/\/$/, "") : MANUAL_MEGA_BASE;
+    const token  = inst ? inst.api_token : MANUAL_MEGA_TOKEN;
+    const digits = phone.replace(/\D/g, "");
+    const to     = (digits.startsWith("55") ? digits : "55" + digits) + "@c.us";
+
+    const url = base + "/text";
+    console.log("[testDisparo] POST", url, { to, text: message });
+
+    const res  = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ messageData: { to, text: message } }),
+    });
+    const body = await res.text();
+    console.log("[testDisparo] resposta:", res.status, body);
+    showTestResult(`POST ${url}\nTo: ${to}`, res.status, body, res.ok);
+    if (res.ok) toast("Mensagem enviada! Verifique o WhatsApp.", "success");
+    else        toast(`API retornou HTTP ${res.status}`, "error");
+  } catch (e) {
+    console.error("[testDisparo] erro:", e);
+    showTestResult("ERRO de rede / CORS", 0, e.message, false);
+    toast(`Erro: ${e.message}`, "error");
+  } finally {
+    btn.disabled = false; btn.textContent = "Enviar teste";
+  }
+}
+
+async function testDisparoStatus() {
+  const btn = $("test-status-btn");
+  btn.disabled = true; btn.textContent = "Verificando...";
+  try {
+    const inst  = await getWebinarInstance();
+    const base  = inst ? inst.api_url.replace(/\/$/, "") : MANUAL_MEGA_BASE;
+    const token = inst ? inst.api_token : MANUAL_MEGA_TOKEN;
+
+    // Extrai o nome da instância do URL (último segmento)
+    const instanceName = base.split("/").pop();
+    // Endpoint de status do WPPConnect / Mega API
+    const statusUrl = base.replace(`/sendMessage/${instanceName}`, `/getStatus/${instanceName}`);
+    console.log("[testStatus] GET", statusUrl);
+
+    const res  = await fetch(statusUrl, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const body = await res.text();
+    console.log("[testStatus] resposta:", res.status, body);
+    showTestResult(`GET ${statusUrl}`, res.status, body, res.ok);
+  } catch (e) {
+    console.error("[testStatus] erro:", e);
+    showTestResult("ERRO ao verificar status", 0, e.message, false);
+    toast(`Erro: ${e.message}`, "error");
+  } finally {
+    btn.disabled = false; btn.textContent = "Verificar status da instância";
+  }
 }
 
 function loadDispatchConfig() {

@@ -394,6 +394,40 @@
         </button>
       </div>
 
+      <!-- ===== TESTE DE DISPARO ===== -->
+      <div class="card stack" id="test-dispatch-card">
+        <div>
+          <h2 class="mb0">🧪 Teste de disparo WhatsApp</h2>
+          <small class="muted">Envio direto pela instância deste webinário para verificar se a API está funcionando.</small>
+        </div>
+
+        <div id="test-instance-info" style="font-size:.82rem;padding:.5rem .7rem;background:var(--bg-soft);border-radius:6px;color:var(--text-dim);">
+          Carregando instância...
+        </div>
+
+        <div class="field-row">
+          <div class="field" style="max-width:260px;">
+            <label>Número de destino</label>
+            <input type="tel" id="test-phone" placeholder="11999999999 (sem +55)" />
+            <small class="muted">Apenas dígitos. O código 55 é adicionado automaticamente.</small>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Mensagem de teste</label>
+          <textarea id="test-message" rows="3" style="width:100%;resize:vertical;" placeholder="Olá! Esta é uma mensagem de teste do sistema Webnário. 🚀"></textarea>
+        </div>
+
+        <div class="row" style="gap:.6rem;flex-wrap:wrap;">
+          <button class="btn btn--primary btn--sm" id="test-send-btn">Enviar teste</button>
+          <button class="btn btn--ghost btn--sm" id="test-status-btn">Verificar status da instância</button>
+        </div>
+
+        <div id="test-result" class="hidden" style="margin-top:.4rem;">
+          <pre id="test-result-pre" style="background:var(--bg-soft);padding:.8rem;border-radius:6px;font-size:.78rem;overflow-x:auto;white-space:pre-wrap;word-break:break-all;max-height:300px;overflow-y:auto;"></pre>
+        </div>
+      </div>
+
     </section>
 
     <!-- ============ FORMULÁRIO ============ -->
