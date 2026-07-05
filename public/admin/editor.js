@@ -1379,11 +1379,22 @@ const MANUAL_MEGA_BASE  = "https://apinocode01.megaapi.com.br/rest/sendMessage/m
 const MANUAL_MEGA_TOKEN = "MJjV24kQIXz";
 
 async function getWebinarInstance() {
-  if (!webinar?.owner_id) return null;
+  // Tenta pela owner_id do webinário
+  if (webinar?.owner_id) {
+    const { data } = await supabase
+      .from("dispatch_numbers")
+      .select("api_url, api_token")
+      .eq("owner_id", webinar.owner_id)
+      .eq("active", true)
+      .order("sort_order", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (data) return data;
+  }
+  // Fallback: qualquer instância ativa (owner_id pode não estar vinculado)
   const { data } = await supabase
     .from("dispatch_numbers")
     .select("api_url, api_token")
-    .eq("owner_id", webinar.owner_id)
     .eq("active", true)
     .order("sort_order", { ascending: true })
     .limit(1)
@@ -1392,6 +1403,7 @@ async function getWebinarInstance() {
 }
 
 async function getWebinarDispatchMessage(dispatchType, msgType) {
+  // Tenta primeiro com dispatch_type (mensagens novas)
   let q = supabase
     .from("webinar_dispatch_messages")
     .select("type, content")
@@ -1400,14 +1412,24 @@ async function getWebinarDispatchMessage(dispatchType, msgType) {
     .eq("active", true)
     .order("sort_order", { ascending: true });
   if (msgType) q = q.eq("type", msgType);
-  const { data } = await q.limit(1).maybeSingle();
-  return data || null;
+  const { data: d1, error: e1 } = await q.limit(1).maybeSingle();
+  if (d1) return d1;
+
+  // Fallback: sem filtro dispatch_type (migration não rodou ou mensagens antigas com NULL)
+  let q2 = supabase
+    .from("webinar_dispatch_messages")
+    .select("type, content")
+    .eq("webinar_id", WID)
+    .eq("active", true)
+    .order("sort_order", { ascending: true });
+  if (msgType) q2 = q2.eq("type", msgType);
+  const { data: d2 } = await q2.limit(1).maybeSingle();
+  return d2 || null;
 }
 
 async function sendLeadReminder(lead, btn) {
   if (phoneAlreadySent(lead.phone, "pre")) {
-    toast(`${lead.name} já recebeu o lembrete automático. Envio bloqueado para evitar duplicidade.`, "error");
-    return;
+    if (!confirm(`${lead.name} já recebeu lembrete anteriormente. Enviar mesmo assim?`)) return;
   }
   if (btn) { btn.disabled = true; btn.textContent = "..."; }
   try {
@@ -1415,6 +1437,7 @@ async function sendLeadReminder(lead, btn) {
       getWebinarDispatchMessage("pre", null),
       getWebinarInstance(),
     ]);
+    console.log("[sendLeadReminder] msg=", msg, "inst=", inst, "webinar.owner_id=", webinar?.owner_id);
     if (!msg) {
       toast("Nenhuma mensagem pré-aula configurada na aba Disparos deste webinário.", "error");
       return;
@@ -1426,6 +1449,7 @@ async function sendLeadReminder(lead, btn) {
     const liveUrl = publicUrl(webinar.slug) + (lead.schedule_id
       ? "&s=" + encodeURIComponent(lead.schedule_id)
       : "&start=" + new Date(lead.scheduled_for).getTime());
+    console.log("[sendLeadReminder] to=", to, "base=", base, "liveUrl=", liveUrl);
 
     let res;
     if (msg.type === "audio") {
@@ -1447,10 +1471,15 @@ async function sendLeadReminder(lead, btn) {
         body: JSON.stringify({ messageData: { to, text } }),
       });
     }
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      console.error("[sendLeadReminder] API error", res.status, body);
+      throw new Error(`HTTP ${res.status}: ${body.slice(0, 120)}`);
+    }
     toast(`Lembrete enviado para ${lead.name}!`, "success");
   } catch (e) {
-    toast(`Erro ao enviar: ${e.message}`, "error");
+    console.error("[sendLeadReminder] erro:", e);
+    toast(`Erro ao enviar lembrete: ${e.message}`, "error");
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = "📱"; }
   }
@@ -1458,8 +1487,7 @@ async function sendLeadReminder(lead, btn) {
 
 async function sendLeadFollowup(lead, btn) {
   if (phoneAlreadySent(lead.phone, "pos")) {
-    toast(`${lead.name} já recebeu o follow-up automático. Envio bloqueado para evitar duplicidade.`, "error");
-    return;
+    if (!confirm(`${lead.name} já recebeu follow-up anteriormente. Enviar mesmo assim?`)) return;
   }
   if (btn) { btn.disabled = true; btn.textContent = "..."; }
   try {
