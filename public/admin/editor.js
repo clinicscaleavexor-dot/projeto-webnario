@@ -1374,35 +1374,79 @@ function phoneAlreadySent(phone, type) {
   return leadsCache.some(l => l.phone.replace(/\D/g, "") === digits && remMap[l.id]?.[type]);
 }
 
+// Fallback quando nenhuma instância está cadastrada no banco para o dono
+const MANUAL_MEGA_BASE  = "https://apinocode01.megaapi.com.br/rest/sendMessage/megacode-MJjV24kQIXz";
+const MANUAL_MEGA_TOKEN = "MJjV24kQIXz";
+
+async function getWebinarInstance() {
+  if (!webinar?.owner_id) return null;
+  const { data } = await supabase
+    .from("dispatch_numbers")
+    .select("api_url, api_token")
+    .eq("owner_id", webinar.owner_id)
+    .eq("active", true)
+    .order("sort_order", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  return data || null;
+}
+
+async function getWebinarDispatchMessage(dispatchType, msgType) {
+  let q = supabase
+    .from("webinar_dispatch_messages")
+    .select("type, content")
+    .eq("webinar_id", WID)
+    .eq("dispatch_type", dispatchType)
+    .eq("active", true)
+    .order("sort_order", { ascending: true });
+  if (msgType) q = q.eq("type", msgType);
+  const { data } = await q.limit(1).maybeSingle();
+  return data || null;
+}
+
 async function sendLeadReminder(lead, btn) {
   if (phoneAlreadySent(lead.phone, "pre")) {
     toast(`${lead.name} já recebeu o lembrete automático. Envio bloqueado para evitar duplicidade.`, "error");
     return;
   }
-  const digits = lead.phone.replace(/\D/g, "");
-  const to = (digits.startsWith("55") ? digits : "55" + digits) + "@c.us";
-  const baseUrl = publicUrl(webinar.slug);
-  const liveUrl = lead.schedule_id
-    ? baseUrl + "&s=" + encodeURIComponent(lead.schedule_id)
-    : baseUrl + "&start=" + new Date(lead.scheduled_for).getTime();
-  const text =
-    `🌸 Oi, tudo bem?\n\n` +
-    `Passando para te lembrar que a aula do *Projeto Topos Lucrativos* já vai começar! 💖\n\n` +
-    `Nessa aula, você vai descobrir como transformar sua criatividade em uma fonte de renda, mesmo que esteja começando do zero.\n\n` +
-    `Clique no link abaixo para assistir:\n\n` +
-    `👉 ${liveUrl}\n\n` +
-    `Estou te esperando para dar o primeiro passo rumo à sua transformação! ✨`;
-
-  const MEGA_URL = "https://apinocode01.megaapi.com.br/rest/sendMessage/megacode-M6hpeUt7tF1/text";
-  const MEGA_TOKEN = "M6hpeUt7tF1";
-
   if (btn) { btn.disabled = true; btn.textContent = "..."; }
   try {
-    const res = await fetch(MEGA_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${MEGA_TOKEN}` },
-      body: JSON.stringify({ messageData: { to, text } }),
-    });
+    const [msg, inst] = await Promise.all([
+      getWebinarDispatchMessage("pre", null),
+      getWebinarInstance(),
+    ]);
+    if (!msg) {
+      toast("Nenhuma mensagem pré-aula configurada na aba Disparos deste webinário.", "error");
+      return;
+    }
+    const digits  = lead.phone.replace(/\D/g, "");
+    const to      = (digits.startsWith("55") ? digits : "55" + digits) + "@c.us";
+    const base    = inst ? inst.api_url.replace(/\/$/, "") : MANUAL_MEGA_BASE;
+    const token   = inst ? inst.api_token : MANUAL_MEGA_TOKEN;
+    const liveUrl = publicUrl(webinar.slug) + (lead.schedule_id
+      ? "&s=" + encodeURIComponent(lead.schedule_id)
+      : "&start=" + new Date(lead.scheduled_for).getTime());
+
+    let res;
+    if (msg.type === "audio") {
+      const ext = msg.content.split(".").pop().split("?")[0].toLowerCase();
+      const mimeType = ext === "ogg" ? "audio/ogg; codecs=opus"
+        : ext === "mp3" ? "audio/mpeg" : ext === "wav" ? "audio/wav" : "audio/mp4";
+      res = await fetch(base + "/mediaUrl", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ messageData: { to, url: msg.content, fileName: `audio.${ext}`, type: "ptt", mimeType, caption: "" } }),
+      });
+    } else {
+      const text = msg.content
+        .replace(/\{nome\}/gi, lead.name)
+        .replace(/\{link\}/gi, liveUrl);
+      res = await fetch(base + "/text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ messageData: { to, text } }),
+      });
+    }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     toast(`Lembrete enviado para ${lead.name}!`, "success");
   } catch (e) {
@@ -1417,20 +1461,24 @@ async function sendLeadFollowup(lead, btn) {
     toast(`${lead.name} já recebeu o follow-up automático. Envio bloqueado para evitar duplicidade.`, "error");
     return;
   }
-  const digits = lead.phone.replace(/\D/g, "");
-  const to = (digits.startsWith("55") ? digits : "55" + digits) + "@c.us";
-  const text =
-    `Oii, tudo bem? 😊\n\n` +
-    `Sou da equipe da Gisele, você conseguiu ver nossa aula certinho?`;
-
-  const MEGA_URL = "https://apinocode01.megaapi.com.br/rest/sendMessage/megacode-M6hpeUt7tF1/text";
-  const MEGA_TOKEN = "M6hpeUt7tF1";
-
   if (btn) { btn.disabled = true; btn.textContent = "..."; }
   try {
-    const res = await fetch(MEGA_URL, {
+    const [msg, inst] = await Promise.all([
+      getWebinarDispatchMessage("pos", "text"),
+      getWebinarInstance(),
+    ]);
+    if (!msg) {
+      toast("Nenhuma mensagem pós-aula (texto) configurada na aba Disparos deste webinário.", "error");
+      return;
+    }
+    const digits = lead.phone.replace(/\D/g, "");
+    const to     = (digits.startsWith("55") ? digits : "55" + digits) + "@c.us";
+    const base   = inst ? inst.api_url.replace(/\/$/, "") : MANUAL_MEGA_BASE;
+    const token  = inst ? inst.api_token : MANUAL_MEGA_TOKEN;
+    const text   = msg.content.replace(/\{nome\}/gi, lead.name);
+    const res = await fetch(base + "/text", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${MEGA_TOKEN}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({ messageData: { to, text } }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -1443,39 +1491,31 @@ async function sendLeadFollowup(lead, btn) {
 }
 
 async function sendLeadAudio(lead, btn) {
-  const audioUrl = dispatchSettings.followup_audio_url;
-  if (!audioUrl) {
-    toast("Faça o upload do áudio nas configurações de disparo antes de usar este botão.", "error");
-    return;
-  }
   if (phoneAlreadySent(lead.phone, "pos")) {
     if (!confirm(`${lead.name} já recebeu follow-up anterior. Enviar áudio mesmo assim?`)) return;
   }
-
-  const digits = lead.phone.replace(/\D/g, "");
-  const to = (digits.startsWith("55") ? digits : "55" + digits) + "@c.us";
-  const ext = audioUrl.split(".").pop().split("?")[0].toLowerCase();
-  const mimeType = ext === "ogg" ? "audio/ogg; codecs=opus"
-    : ext === "mp3" ? "audio/mpeg"
-    : ext === "wav" ? "audio/wav"
-    : "audio/mp4";
-
-  const MEGA_MEDIA_URL = "https://apinocode01.megaapi.com.br/rest/sendMessage/megacode-M6hpeUt7tF1/mediaUrl";
-  const MEGA_TOKEN = "M6hpeUt7tF1";
-
   if (btn) { btn.disabled = true; btn.textContent = "..."; }
   try {
-    const res = await fetch(MEGA_MEDIA_URL, {
+    const [msg, inst] = await Promise.all([
+      getWebinarDispatchMessage("pos", "audio"),
+      getWebinarInstance(),
+    ]);
+    if (!msg) {
+      toast("Nenhuma mensagem pós-aula (áudio) configurada na aba Disparos deste webinário.", "error");
+      return;
+    }
+    const digits   = lead.phone.replace(/\D/g, "");
+    const to       = (digits.startsWith("55") ? digits : "55" + digits) + "@c.us";
+    const base     = inst ? inst.api_url.replace(/\/$/, "") : MANUAL_MEGA_BASE;
+    const token    = inst ? inst.api_token : MANUAL_MEGA_TOKEN;
+    const audioUrl = msg.content;
+    const ext      = audioUrl.split(".").pop().split("?")[0].toLowerCase();
+    const mimeType = ext === "ogg" ? "audio/ogg; codecs=opus"
+      : ext === "mp3" ? "audio/mpeg" : ext === "wav" ? "audio/wav" : "audio/mp4";
+    const res = await fetch(base + "/mediaUrl", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${MEGA_TOKEN}` },
-      body: JSON.stringify({ messageData: {
-        to,
-        url: audioUrl,
-        fileName: `audio.${ext}`,
-        type: "ptt",      // nota de voz — abre automático no WhatsApp
-        mimeType,
-        caption: "",
-      } }),
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ messageData: { to, url: audioUrl, fileName: `audio.${ext}`, type: "ptt", mimeType, caption: "" } }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     toast(`Áudio enviado para ${lead.name}!`, "success");
