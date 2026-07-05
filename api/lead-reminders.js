@@ -99,12 +99,16 @@ module.exports = async function handler(req, res) {
   let dispatchMode      = "text_all";
   let followupAudioUrl  = "";
   let messagePool       = [];
-  let preWinStart       = 30; // minutos antes da aula: início do envio (fallback global)
-  let preWinEnd         = 10; // minutos antes da aula: fim do envio
-  let posWinStart       = 60; // minutos após a aula: início do follow-up (fallback global)
-  let posWinEnd         = 90; // minutos após a aula: fim do follow-up
+  let preWinStart       = 30;
+  let preWinEnd         = 10;
+  let posWinStart       = 60;
+  let posWinEnd         = 90;
+  let webhookEnabled    = false;
+  let webhookUrl        = "";
+
+  let settings = [];
   try {
-    const settings = await sbRpc("get_dispatch_settings", {});
+    settings = await sbRpc("get_dispatch_settings", {});
     for (const s of settings) {
       if (s.key === "auto_pre_enabled")           autoPreEnabled = s.value !== "false";
       if (s.key === "auto_pos_enabled")           autoPosEnabled = s.value !== "false";
@@ -114,21 +118,26 @@ module.exports = async function handler(req, res) {
       if (s.key === "lead_window_end_minutes")    preWinEnd      = +s.value || preWinEnd;
       if (s.key === "pos_window_start_minutes")   posWinStart    = +s.value || posWinStart;
       if (s.key === "pos_window_end_minutes")     posWinEnd      = +s.value || posWinEnd;
+      if (s.key === "webhook_enabled")            webhookEnabled = s.value === "true";
+      if (s.key === "webhook_url")                webhookUrl     = s.value || "";
       if (s.key === "message_pool") {
         try { messagePool = JSON.parse(s.value).filter(t => t && t.trim()); } catch {}
       }
     }
   } catch {}
 
+  // ── MODO WEBHOOK ──────────────────────────────────────────────────────
+  if (webhookEnabled && webhookUrl) {
+    return await handleWebhookDispatches(req, res, webhookUrl);
+  }
+
   if (!autoPreEnabled && !autoPosEnabled) {
     return res.status(200).json({ ok: true, paused: "all", time: new Date().toISOString() });
   }
 
   const nowMs  = Date.now();
-  // Pre-aula: aula deve ocorrer entre (agora + preWinEnd min) e (agora + preWinStart min)
   const preMin = new Date(nowMs + preWinEnd   * 60 * 1000).toISOString();
   const preMax = new Date(nowMs + preWinStart * 60 * 1000).toISOString();
-  // Pos-aula: aula deve ter ocorrido entre (agora - posWinEnd min) e (agora - posWinStart min)
   const posMin = new Date(nowMs - posWinEnd   * 60 * 1000).toISOString();
   const posMax = new Date(nowMs - posWinStart * 60 * 1000).toISOString();
 
@@ -322,3 +331,83 @@ module.exports = async function handler(req, res) {
     log: results.log,
   });
 };
+
+// =====================================================================
+//  WEBHOOK MODE
+//  Timing fixo por schedule_type, sem Mega API.
+//  Payload: { nome, telefone, link, tipo: "lembrete"|"follow-up" }
+// =====================================================================
+async function handleWebhookDispatches(req, res, webhookUrl) {
+  let leads = [];
+  try {
+    leads = await sbRpc("get_pending_webhooks", {});
+  } catch (e) {
+    return res.status(200).json({ ok: false, mode: "webhook", rpc_error: e.message });
+  }
+
+  const results = { pre: 0, pos: 0, errors: 0, log: [] };
+  let sent = 0;
+
+  for (const lead of leads) {
+    if (sent >= BATCH_SIZE) break;
+
+    const type = lead.reminder_type; // 'pre' | 'pos'
+
+    let claimed = false;
+    try {
+      claimed = await sbRpc("claim_reminder", { p_lead_id: lead.id, p_type: type });
+    } catch (e) {
+      results.errors++;
+      results.log.push({ name: lead.name, type, skip: "claim_error", error: e.message });
+      continue;
+    }
+    if (!claimed) {
+      results.log.push({ name: lead.name, type, skip: "ja_enviado" });
+      continue;
+    }
+
+    const watchUrl = buildWatchUrl(lead.webinar_slug, lead);
+    const digits   = (lead.phone || "").replace(/\D/g, "");
+    const telefone = digits.startsWith("55") ? digits : "55" + digits;
+
+    const payload = {
+      nome:     lead.name,
+      telefone,
+      link:     watchUrl,
+      tipo:     type === "pre" ? "lembrete" : "follow-up",
+    };
+
+    try {
+      const wRes = await fetch(webhookUrl, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify(payload),
+      });
+      if (wRes.ok) {
+        results[type]++;
+        sent++;
+        results.log.push({ name: lead.name, type, sent: true, webhook: webhookUrl });
+      } else {
+        const body = await wRes.text().catch(() => "");
+        results.errors++;
+        results.log.push({ name: lead.name, type, skip: "webhook_error", status: wRes.status, body: body.slice(0, 200) });
+      }
+    } catch (e) {
+      results.errors++;
+      results.log.push({ name: lead.name, type, skip: "webhook_network_error", error: e.message });
+    }
+
+    await sleep(DELAY_MS);
+  }
+
+  return res.status(200).json({
+    ok:      true,
+    mode:    "webhook",
+    time:    new Date().toISOString(),
+    found:   leads.length,
+    pre_sent:  results.pre,
+    pos_sent:  results.pos,
+    errors:    results.errors,
+    log:       results.log,
+  });
+}
