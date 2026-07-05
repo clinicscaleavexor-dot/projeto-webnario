@@ -21,8 +21,8 @@ CREATE POLICY dn_owner ON public.dispatch_numbers FOR ALL
 INSERT INTO public.dispatch_numbers (name, api_url, api_token, active, sort_order, owner_id)
 VALUES (
   'Instância Principal',
-  'https://apinocode01.megaapi.com.br/rest/sendMessage/megacode-M6hpeUt7tF1',
-  'M6hpeUt7tF1',
+  'https://apinocode01.megaapi.com.br/rest/sendMessage/megacode-MJjV24kQIXz',
+  'MJjV24kQIXz',
   true,
   0,
   (SELECT id FROM auth.users WHERE email = 'chrestopherm@gmail.com')

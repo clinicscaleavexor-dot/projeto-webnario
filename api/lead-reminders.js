@@ -1,6 +1,6 @@
-const MEGA_URL       = "https://apinocode01.megaapi.com.br/rest/sendMessage/megacode-M6hpeUt7tF1/text";
-const MEGA_MEDIA_URL = "https://apinocode01.megaapi.com.br/rest/sendMessage/megacode-M6hpeUt7tF1/mediaUrl";
-const MEGA_TOKEN     = "M6hpeUt7tF1";
+const MEGA_URL       = "https://apinocode01.megaapi.com.br/rest/sendMessage/megacode-MJjV24kQIXz/text";
+const MEGA_MEDIA_URL = "https://apinocode01.megaapi.com.br/rest/sendMessage/megacode-MJjV24kQIXz/mediaUrl";
+const MEGA_TOKEN     = "MJjV24kQIXz";
 const BATCH_SIZE = 5;   // por execução (cron a cada 1 min → ~50 msgs em 10 min)
 const DELAY_MS   = 3000; // 3s entre cada mensagem para não disparar tudo de uma vez
 
