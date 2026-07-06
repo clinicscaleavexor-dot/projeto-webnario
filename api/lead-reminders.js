@@ -143,7 +143,7 @@ module.exports = async function handler(req, res) {
   let webhookLeads  = [];
   try {
     [whatsappLeads, webhookLeads] = await Promise.all([
-      sbRpc("get_pending_reminders", { p_pre_min: preMin, p_pre_max: preMax, p_pos_min: posMin, p_pos_max: posMax }),
+      sbRpc("get_pending_reminders", { p_pre_min: preMin, p_pre_max: preMax, p_pos_min: posMin, p_pos_max: posMax }).catch(() => []),
       sbRpc("get_pending_webhooks", {}).catch(() => []),
     ]);
   } catch (e) {
