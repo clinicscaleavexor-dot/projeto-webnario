@@ -312,6 +312,7 @@ async function loadWebinar() {
   if (lfModeEl) lfModeEl.checked = true;
   $("lf-wa-number").value = lf.whatsapp_number || "";
   $("lf-wa-message").value = lf.whatsapp_message || "";
+  $("lf-now-wa-message").value = lf.now_whatsapp_message || "";
   $("lf-reminder-note").value = lf.reminder_note || "";
   toggleLfMode();
 
@@ -382,6 +383,7 @@ async function saveCore() {
       mode: document.querySelector("[name='lf-mode']:checked")?.value || "standard",
       whatsapp_number: $("lf-wa-number").value.trim(),
       whatsapp_message: $("lf-wa-message").value.trim(),
+      now_whatsapp_message: $("lf-now-wa-message").value.trim(),
       reminder_note: $("lf-reminder-note").value.trim(),
       extra_fields: [
         {

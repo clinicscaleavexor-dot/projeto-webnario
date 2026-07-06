@@ -39,6 +39,7 @@ async function init() {
     mode: lfSaved.mode || "standard",
     whatsapp_number: lfSaved.whatsapp_number || "",
     whatsapp_message: lfSaved.whatsapp_message || "Quero ativar meu lembrete da aula de topo de bolo Floral",
+    now_whatsapp_message: lfSaved.now_whatsapp_message || "",
     reminder_note: lfSaved.reminder_note || "",
   };
   serverNowMs = new Date(pkg.server_now).getTime();
@@ -318,7 +319,11 @@ async function submitLead() {
 
   if (lf.mode === "whatsapp_reminder") {
     const digits = (lf.whatsapp_number || "").replace(/\D/g, "");
-    const msg = encodeURIComponent(lf.whatsapp_message || "Quero ativar meu lembrete da aula de topo de bolo Floral");
+    const isNow = pendingSlot.type === "now";
+    const waMsg = (isNow && lf.now_whatsapp_message)
+      ? lf.now_whatsapp_message
+      : (lf.whatsapp_message || "Quero ativar meu lembrete da aula de topo de bolo Floral");
+    const msg = encodeURIComponent(waMsg);
     closeLeadModal();
     window.location.href = digits ? `https://wa.me/${digits}?text=${msg}` : `https://wa.me/?text=${msg}`;
     return;
