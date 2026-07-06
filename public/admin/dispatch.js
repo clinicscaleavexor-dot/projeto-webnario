@@ -654,14 +654,38 @@ async function fireRemindersNow() {
   }
 }
 
+async function fireRemindersSilent() {
+  const secret = (window.APP_CONFIG || {}).DISPATCH_SECRET || "";
+  try {
+    const res = await fetch("/api/lead-reminders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-dispatch-secret": secret },
+    });
+    const data = await res.json();
+    if (!res.ok) { console.error("[monitor] lead-reminders:", data.error || res.status); return; }
+    const total = (data.pre_sent || 0) + (data.pos_sent || 0) + (data.scheduled_sent || 0);
+    if (total > 0) {
+      $("reminders-status").textContent = `✓ ${total} lembrete(s) auto — pré: ${data.pre_sent || 0}, pós: ${data.pos_sent || 0}`;
+      toast(`${total} lembrete(s) disparado(s) automaticamente!`, "success");
+    }
+    if (data.errors > 0) console.warn("[monitor] lead-reminders errors:", data.log);
+  } catch (e) {
+    console.warn("[monitor] lead-reminders:", e.message);
+  }
+}
+
 // =====================================================================
 //  MONITOR DE DISPAROS
 // =====================================================================
 function startMonitor() {
   if (monitorInterval) return;
-  monitorInterval = setInterval(() => checkAndFire(false), 60000);
+  monitorInterval = setInterval(() => {
+    checkAndFire(false);
+    fireRemindersSilent();
+  }, 60000);
   updateMonitorUI(true);
-  checkAndFire(false); // verifica imediatamente ao iniciar
+  checkAndFire(false);
+  fireRemindersSilent(); // verifica imediatamente ao iniciar
 }
 
 function stopMonitor() {
@@ -682,7 +706,7 @@ function updateMonitorUI(running) {
   if (running) {
     bar.classList.add("active");
     bar.classList.remove("error");
-    lbl.textContent = "Monitorando — verificando disparos a cada minuto";
+    lbl.textContent = "Monitorando — grupos + lembretes/webhooks a cada minuto";
     btn.textContent = "Pausar monitoramento";
   } else {
     bar.classList.remove("active", "error");
