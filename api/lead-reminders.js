@@ -344,6 +344,19 @@ module.exports = async function handler(req, res) {
   let schedSent = 0;
   try {
     const pendingMsgs = await sbRpc("get_pending_scheduled_messages", {});
+
+    // Carrega configs de webinários ainda não presentes no mapa (ex: sem leads pendentes)
+    const missingIds = [...new Set(pendingMsgs.map(m => m.webinar_id).filter(id => id && !(id in webinarMode)))];
+    if (missingIds.length) {
+      try {
+        const extraWebs = await sbQuery("webinars", `id=in.(${missingIds.join(",")})&select=id,settings`);
+        for (const w of extraWebs) {
+          webinarMode[w.id]       = w.settings?.dispatch_config?.mode || "whatsapp";
+          webinarWebhookUrl[w.id] = w.settings?.dispatch_config?.webhook_url || "";
+        }
+      } catch {}
+    }
+
     for (const msg of pendingMsgs) {
       if (sent + schedSent >= BATCH_SIZE) break;
 
@@ -351,14 +364,52 @@ module.exports = async function handler(req, res) {
       try { claimed = await sbRpc("claim_scheduled_message", { p_id: msg.id }); } catch {}
       if (!claimed) continue;
 
-      const { ok, status: httpStatus, error: sendErr } = await sendWhatsApp(msg.phone, msg.message);
-      if (ok) {
-        schedSent++;
-        results.log.push({ name: msg.name || msg.phone, type: "scheduled", sent: true });
+      const mode = webinarMode[msg.webinar_id] || "whatsapp";
+
+      if (mode === "webhook") {
+        const wUrl = webinarWebhookUrl[msg.webinar_id];
+        if (!wUrl) {
+          results.errors++;
+          results.log.push({ name: msg.name || msg.phone, type: "scheduled", skip: "webhook_url_missing" });
+          try { await sbRpc("fail_scheduled_message", { p_id: msg.id, p_error: "webhook_url_missing" }); } catch {}
+          continue;
+        }
+        const digits = (msg.phone || "").replace(/\D/g, "");
+        const payload = {
+          nome:     msg.name || "",
+          telefone: digits.startsWith("55") ? digits : "55" + digits,
+          mensagem: msg.message,
+          tipo:     "aula_agendada",
+        };
+        try {
+          const wRes = await fetch(wUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          if (wRes.ok) {
+            schedSent++;
+            results.log.push({ name: msg.name || msg.phone, type: "scheduled", sent: true, mode: "webhook" });
+          } else {
+            results.errors++;
+            results.log.push({ name: msg.name || msg.phone, type: "scheduled", skip: "webhook_http_error", status: wRes.status });
+            try { await sbRpc("fail_scheduled_message", { p_id: msg.id, p_error: `HTTP ${wRes.status}` }); } catch {}
+          }
+        } catch (e) {
+          results.errors++;
+          results.log.push({ name: msg.name || msg.phone, type: "scheduled", skip: "webhook_network_error", error: e.message });
+          try { await sbRpc("fail_scheduled_message", { p_id: msg.id, p_error: e.message }); } catch {}
+        }
       } else {
-        results.errors++;
-        results.log.push({ name: msg.name || msg.phone, type: "scheduled", skip: "mega_error", error: sendErr });
-        try { await sbRpc("fail_scheduled_message", { p_id: msg.id, p_error: sendErr || `HTTP ${httpStatus}` }); } catch {}
+        const { ok, status: httpStatus, error: sendErr } = await sendWhatsApp(msg.phone, msg.message);
+        if (ok) {
+          schedSent++;
+          results.log.push({ name: msg.name || msg.phone, type: "scheduled", sent: true });
+        } else {
+          results.errors++;
+          results.log.push({ name: msg.name || msg.phone, type: "scheduled", skip: "mega_error", error: sendErr });
+          try { await sbRpc("fail_scheduled_message", { p_id: msg.id, p_error: sendErr || `HTTP ${httpStatus}` }); } catch {}
+        }
       }
       await sleep(DELAY_MS);
     }
