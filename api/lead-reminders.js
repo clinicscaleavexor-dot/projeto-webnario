@@ -220,8 +220,21 @@ module.exports = async function handler(req, res) {
       continue;
     }
 
-    // Grava o log ANTES de enviar (atômico via ON CONFLICT DO NOTHING).
-    // Se retornar false, outra invocação já enviou — pula.
+    const watchUrl = buildWatchUrl(lead.webinar_slug, lead);
+    const mode     = webinarMode[lead.webinar_id] || "whatsapp";
+    const isFromWebhookRpc = webhookLeads.some(wl => wl.id === lead.id && wl.reminder_type === type);
+
+    // Roteamento ANTES do claim — evita marcar como enviado sem ter disparado
+    if (mode === "webhook" && !isFromWebhookRpc) {
+      results.log.push({ name: lead.name, type, skip: "webhook_wrong_rpc" });
+      continue;
+    }
+    if (mode !== "webhook" && isFromWebhookRpc) {
+      results.log.push({ name: lead.name, type, skip: "whatsapp_wrong_rpc" });
+      continue;
+    }
+
+    // Claim depois do roteamento — só marca enviado se vai realmente disparar
     let claimed = false;
     try {
       claimed = await sbRpc("claim_reminder", { p_lead_id: lead.id, p_type: type });
@@ -236,21 +249,8 @@ module.exports = async function handler(req, res) {
       continue;
     }
 
-    // Envia após garantir o claim no banco
-
-    const watchUrl = buildWatchUrl(lead.webinar_slug, lead);
-    const mode     = webinarMode[lead.webinar_id] || "whatsapp";
-
     // ── MODO WEBHOOK ────────────────────────────────────────────────────
     if (mode === "webhook") {
-      // Leads do get_pending_reminders com modo webhook: verifica se vieram do RPC correto
-      // Os leads de whatsappLeads com modo webhook são ignorados (timing errado);
-      // apenas webhookLeads (get_pending_webhooks) têm timing correto para webhook.
-      const isFromWebhookRpc = webhookLeads.some(wl => wl.id === lead.id && wl.reminder_type === type);
-      if (!isFromWebhookRpc) {
-        results.log.push({ name: lead.name, type, skip: "webhook_wrong_rpc" });
-        continue;
-      }
       const wUrl = webinarWebhookUrl[lead.webinar_id];
       if (!wUrl) {
         results.errors++;
@@ -287,12 +287,6 @@ module.exports = async function handler(req, res) {
     }
 
     // ── MODO WHATSAPP ────────────────────────────────────────────────────
-    // Leads do get_pending_webhooks com modo whatsapp: ignora (timing incorreto para WA)
-    const isFromWebhookRpc = webhookLeads.some(wl => wl.id === lead.id && wl.reminder_type === type);
-    if (isFromWebhookRpc) {
-      results.log.push({ name: lead.name, type, skip: "whatsapp_wrong_rpc" });
-      continue;
-    }
 
     const rotIdx = Number(lead.rotation_index) || 0;
     const wMsgs  = type === "pre"
