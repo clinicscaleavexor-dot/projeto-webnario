@@ -39,6 +39,7 @@ async function init() {
     mode: lfSaved.mode || "standard",
     whatsapp_number: lfSaved.whatsapp_number || "",
     whatsapp_message: lfSaved.whatsapp_message || "Quero ativar meu lembrete da aula de topo de bolo Floral",
+    reminder_note: lfSaved.reminder_note || "",
   };
   serverNowMs = new Date(pkg.server_now).getTime();
 
@@ -216,6 +217,13 @@ function openLeadModal(subText) {
   $("lead-name-label").textContent = lf.name_label;
   $("lead-phone-label").textContent = lf.phone_label;
   $("lead-submit").textContent = lf.button_text;
+  const waNote = $("lead-wa-note");
+  if (lf.mode === "whatsapp_reminder" && lf.reminder_note) {
+    waNote.textContent = lf.reminder_note;
+    waNote.classList.remove("hidden");
+  } else {
+    waNote.classList.add("hidden");
+  }
   $("lead-name").value = "";
   $("lead-phone").value = "";
   renderExtraFields(lf.extra_fields || []);
