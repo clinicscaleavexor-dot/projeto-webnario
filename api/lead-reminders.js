@@ -222,17 +222,6 @@ module.exports = async function handler(req, res) {
 
     const watchUrl = buildWatchUrl(lead.webinar_slug, lead);
     const mode     = webinarMode[lead.webinar_id] || "whatsapp";
-    const isFromWebhookRpc = webhookLeads.some(wl => wl.id === lead.id && wl.reminder_type === type);
-
-    // Roteamento ANTES do claim — evita marcar como enviado sem ter disparado
-    if (mode === "webhook" && !isFromWebhookRpc) {
-      results.log.push({ name: lead.name, type, skip: "webhook_wrong_rpc" });
-      continue;
-    }
-    if (mode !== "webhook" && isFromWebhookRpc) {
-      results.log.push({ name: lead.name, type, skip: "whatsapp_wrong_rpc" });
-      continue;
-    }
 
     // Claim depois do roteamento — só marca enviado se vai realmente disparar
     let claimed = false;
