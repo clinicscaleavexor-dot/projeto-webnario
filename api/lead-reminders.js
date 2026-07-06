@@ -345,15 +345,12 @@ module.exports = async function handler(req, res) {
   try {
     const pendingMsgs = await sbRpc("get_pending_scheduled_messages", {});
 
-    // Carrega configs de webinários ainda não presentes no mapa (ex: sem leads pendentes)
-    const missingIds = [...new Set(pendingMsgs.map(m => m.webinar_id).filter(id => id && !(id in webinarMode)))];
+    // Garante webhook_url carregada para webinários sem leads pendentes
+    const missingIds = [...new Set(pendingMsgs.map(m => m.webinar_id).filter(id => id && !(id in webinarWebhookUrl)))];
     if (missingIds.length) {
       try {
         const extraWebs = await sbQuery("webinars", `id=in.(${missingIds.join(",")})&select=id,settings`);
-        for (const w of extraWebs) {
-          webinarMode[w.id]       = w.settings?.dispatch_config?.mode || "whatsapp";
-          webinarWebhookUrl[w.id] = w.settings?.dispatch_config?.webhook_url || "";
-        }
+        for (const w of extraWebs) webinarWebhookUrl[w.id] = w.settings?.dispatch_config?.webhook_url || "";
       } catch {}
     }
 
@@ -364,7 +361,7 @@ module.exports = async function handler(req, res) {
       try { claimed = await sbRpc("claim_scheduled_message", { p_id: msg.id }); } catch {}
       if (!claimed) continue;
 
-      const mode = webinarMode[msg.webinar_id] || "whatsapp";
+      const mode = msg.dispatch_mode || "whatsapp";
 
       if (mode === "webhook") {
         const wUrl = webinarWebhookUrl[msg.webinar_id];

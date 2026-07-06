@@ -688,6 +688,16 @@
             </div>
             <textarea id="sched-message" rows="4" placeholder="Escreva a mensagem ou use um template acima..." style="width:100%;resize:vertical;"></textarea>
           </div>
+          <div class="row" style="gap:1.2rem;flex-wrap:wrap;align-items:center;">
+            <label class="row" style="gap:.4rem;cursor:pointer;align-items:center;">
+              <input type="radio" name="sched-dispatch-mode" id="sched-mode-whatsapp" value="whatsapp" checked />
+              <span style="font-size:.88rem;font-weight:600;">📱 WhatsApp</span>
+            </label>
+            <label class="row" style="gap:.4rem;cursor:pointer;align-items:center;">
+              <input type="radio" name="sched-dispatch-mode" id="sched-mode-webhook" value="webhook" />
+              <span style="font-size:.88rem;font-weight:600;">🔗 Webhook</span>
+            </label>
+          </div>
           <div class="row" style="gap:.5rem;">
             <button class="btn btn--sm btn--primary" id="sched-save-btn">Agendar envio</button>
             <button class="btn btn--sm" id="sched-cancel-btn">Cancelar</button>

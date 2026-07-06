@@ -1595,6 +1595,7 @@ function closeSchedForm() {
   $("sched-phone").value = "";
   $("sched-name").value = "";
   $("sched-message").value = "";
+  const wa = $("sched-mode-whatsapp"); if (wa) wa.checked = true;
   $("sched-phone-dropdown").classList.add("hidden");
 }
 
@@ -1664,8 +1665,9 @@ async function saveScheduledMessage() {
   const btn = $("sched-save-btn");
   btn.disabled = true; btn.textContent = "Agendando...";
 
+  const dispatch_mode = document.querySelector("[name='sched-dispatch-mode']:checked")?.value || "whatsapp";
   const { error } = await supabase.from("scheduled_messages").insert({
-    webinar_id: WID, phone, name, message, scheduled_for: scheduledFor,
+    webinar_id: WID, phone, name, message, scheduled_for: scheduledFor, dispatch_mode,
   });
   btn.disabled = false; btn.textContent = "Agendar envio";
 
