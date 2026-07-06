@@ -26,6 +26,9 @@ const $ = (id) => document.getElementById(id);
   $("save-btn").addEventListener("click", saveCore);
   $("publish-btn").addEventListener("click", togglePublish);
   $("copy-link").addEventListener("click", copyLink);
+  document.querySelectorAll("[name='lf-mode']").forEach(r =>
+    r.addEventListener("change", toggleLfMode)
+  );
   $("video-file").addEventListener("change", onVideoFile);
   $("video-url").addEventListener("change", onVideoUrlChange);
   setupPackInserter();
@@ -304,6 +307,12 @@ async function loadWebinar() {
   $("lf-name-label").value = lf.name_label || "";
   $("lf-phone-label").value = lf.phone_label || "";
   $("lf-button-text").value = lf.button_text || "";
+  const lfMode = lf.mode || "standard";
+  const lfModeEl = document.querySelector(`[name="lf-mode"][value="${lfMode}"]`);
+  if (lfModeEl) lfModeEl.checked = true;
+  $("lf-wa-number").value = lf.whatsapp_number || "";
+  $("lf-wa-message").value = lf.whatsapp_message || "";
+  toggleLfMode();
 
   const eq = lf.extra_fields || [{}, {}];
   const eq1 = eq[0] || {}, eq2 = eq[1] || {};
@@ -369,6 +378,9 @@ async function saveCore() {
       name_label: $("lf-name-label").value.trim(),
       phone_label: $("lf-phone-label").value.trim(),
       button_text: $("lf-button-text").value.trim(),
+      mode: document.querySelector("[name='lf-mode']:checked")?.value || "standard",
+      whatsapp_number: $("lf-wa-number").value.trim(),
+      whatsapp_message: $("lf-wa-message").value.trim(),
       extra_fields: [
         {
           enabled: $("lf-eq1-enabled").checked,
@@ -399,6 +411,12 @@ async function saveCore() {
   if (error) return toast("Erro ao salvar: " + error.message, "error");
   webinar = data;
   toast("Alterações salvas!", "success");
+}
+
+function toggleLfMode() {
+  const mode = document.querySelector("[name='lf-mode']:checked")?.value || "standard";
+  const wrap = $("lf-wa-wrap");
+  if (wrap) wrap.classList.toggle("hidden", mode !== "whatsapp_reminder");
 }
 
 async function togglePublish() {

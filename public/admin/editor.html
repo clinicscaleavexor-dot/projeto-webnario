@@ -512,6 +512,33 @@
 
         <hr class="divider" />
 
+        <h3 class="mb0">Modo do formulário</h3>
+        <p class="muted mt0" style="font-size:.85rem;">Define o que acontece após a pessoa preencher nome e telefone.</p>
+        <div class="row" style="gap:1.5rem;flex-wrap:wrap;">
+          <label class="row" style="gap:.5rem;cursor:pointer;align-items:flex-start;">
+            <input type="radio" name="lf-mode" id="lf-mode-standard" value="standard" checked style="margin-top:.2rem;" />
+            <div><span style="font-weight:600;">Padrão</span><br><small class="muted">Redireciona para a aula no horário escolhido</small></div>
+          </label>
+          <label class="row" style="gap:.5rem;cursor:pointer;align-items:flex-start;">
+            <input type="radio" name="lf-mode" id="lf-mode-wa" value="whatsapp_reminder" style="margin-top:.2rem;" />
+            <div><span style="font-weight:600;">Ativar lembrete via WhatsApp</span><br><small class="muted">Redireciona para o WhatsApp após salvar o lead</small></div>
+          </label>
+        </div>
+        <div id="lf-wa-wrap" class="hidden" style="display:flex;flex-direction:column;gap:.6rem;margin-top:.2rem;">
+          <div class="field">
+            <label>Número do WhatsApp (com DDI)</label>
+            <input id="lf-wa-number" placeholder="5511999999999" />
+            <small class="muted">Apenas dígitos com DDI. Ex: 5511999999999</small>
+          </div>
+          <div class="field">
+            <label>Mensagem pré-preenchida</label>
+            <input id="lf-wa-message" placeholder="Quero ativar meu lembrete da aula de topo de bolo Floral" />
+            <small class="muted">Texto que aparece pré-digitado quando a pessoa abre o WhatsApp</small>
+          </div>
+        </div>
+
+        <hr class="divider" />
+
         <h3 class="mb0">Perguntas extras (opcionais)</h3>
         <p class="muted mt0" style="font-size:.85rem;">Adicione até 2 perguntas extras ao formulário. As respostas ficam salvas junto ao lead.</p>
 

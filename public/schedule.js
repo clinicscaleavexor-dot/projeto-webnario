@@ -36,6 +36,9 @@ async function init() {
     phone_label: lfSaved.phone_label || LEAD_FORM_DEFAULTS.phone_label,
     button_text: lfSaved.button_text || LEAD_FORM_DEFAULTS.button_text,
     extra_fields: lfSaved.extra_fields || [],
+    mode: lfSaved.mode || "standard",
+    whatsapp_number: lfSaved.whatsapp_number || "",
+    whatsapp_message: lfSaved.whatsapp_message || "Quero ativar meu lembrete da aula de topo de bolo Floral",
   };
   serverNowMs = new Date(pkg.server_now).getTime();
 
@@ -300,6 +303,16 @@ async function submitLead() {
 
   if (error) {
     showLeadError("Erro ao salvar. Tente novamente.");
+    return;
+  }
+
+  const lf = webinarData.lead_form;
+
+  if (lf.mode === "whatsapp_reminder") {
+    const digits = (lf.whatsapp_number || "").replace(/\D/g, "");
+    const msg = encodeURIComponent(lf.whatsapp_message || "Quero ativar meu lembrete da aula de topo de bolo Floral");
+    closeLeadModal();
+    window.location.href = digits ? `https://wa.me/${digits}?text=${msg}` : `https://wa.me/?text=${msg}`;
     return;
   }
 
