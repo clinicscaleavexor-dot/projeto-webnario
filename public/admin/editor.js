@@ -1783,9 +1783,19 @@ function setupDisparosForm() {
   $("dc-pos-end").addEventListener("input",   updateDcPosExample);
   $("dc-save-btn").addEventListener("click",  saveDispatchConfig);
 
+  // Modo de envio (whatsapp / webhook)
+  $("dc-mode-whatsapp").addEventListener("change", toggleDcModeFields);
+  $("dc-mode-webhook").addEventListener("change",  toggleDcModeFields);
+  $("dc-mode-save-btn").addEventListener("click",  saveDcMode);
+
   $("test-send-btn").addEventListener("click",   testDisparoSend);
   $("test-status-btn").addEventListener("click", testDisparoStatus);
   loadTestInstanceInfo();
+}
+
+function toggleDcModeFields() {
+  const isWebhook = $("dc-mode-webhook").checked;
+  $("dc-webhook-wrap").classList.toggle("hidden", !isWebhook);
 }
 
 async function loadTestInstanceInfo() {
@@ -1880,6 +1890,14 @@ async function testDisparoStatus() {
 
 function loadDispatchConfig() {
   const dc = webinar.settings?.dispatch_config || {};
+
+  // Modo de envio
+  const mode = dc.mode || "whatsapp";
+  $("dc-mode-whatsapp").checked = mode !== "webhook";
+  $("dc-mode-webhook").checked  = mode === "webhook";
+  $("dc-webhook-url").value     = dc.webhook_url || "";
+  $("dc-webhook-wrap").classList.toggle("hidden", mode !== "webhook");
+
   $("dc-pre-enabled").checked = dc.pre?.enabled !== false;
   $("dc-pre-start").value     = dc.pre?.window_start_minutes ?? 30;
   $("dc-pre-end").value       = dc.pre?.window_end_minutes   ?? 10;
@@ -1888,6 +1906,22 @@ function loadDispatchConfig() {
   $("dc-pos-end").value       = dc.pos?.window_end_minutes   ?? 90;
   updateDcPreExample();
   updateDcPosExample();
+}
+
+async function saveDcMode() {
+  const mode       = $("dc-mode-webhook").checked ? "webhook" : "whatsapp";
+  const webhookUrl = $("dc-webhook-url").value.trim();
+  if (mode === "webhook" && !webhookUrl) {
+    toast("Informe a URL do webhook antes de salvar.", "error");
+    return;
+  }
+  const dc         = webinar.settings?.dispatch_config || {};
+  const newDc      = { ...dc, mode, webhook_url: webhookUrl };
+  const newSettings = { ...(webinar.settings || {}), dispatch_config: newDc };
+  const { error } = await supabase.from("webinars").update({ settings: newSettings }).eq("id", WID);
+  if (error) return toast("Erro ao salvar modo: " + error.message, "error");
+  webinar.settings = newSettings;
+  toast(mode === "webhook" ? "Modo webhook ativado!" : "Modo WhatsApp ativado!", "success");
 }
 
 function updateDcPreExample() {

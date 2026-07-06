@@ -126,11 +126,6 @@ module.exports = async function handler(req, res) {
     }
   } catch {}
 
-  // ── MODO WEBHOOK ──────────────────────────────────────────────────────
-  if (webhookEnabled && webhookUrl) {
-    return await handleWebhookDispatches(req, res, webhookUrl);
-  }
-
   if (!autoPreEnabled && !autoPosEnabled) {
     return res.status(200).json({ ok: true, paused: "all", time: new Date().toISOString() });
   }
@@ -141,21 +136,30 @@ module.exports = async function handler(req, res) {
   const posMin = new Date(nowMs - posWinEnd   * 60 * 1000).toISOString();
   const posMax = new Date(nowMs - posWinStart * 60 * 1000).toISOString();
 
-  let leads = [];
+  // Busca leads pendentes pelos dois modos em paralelo
+  // get_pending_webhooks: timing fixo por schedule_type (para webinários em modo webhook)
+  // get_pending_reminders: janelas configuráveis (para webinários em modo whatsapp)
+  let whatsappLeads = [];
+  let webhookLeads  = [];
   try {
-    leads = await sbRpc("get_pending_reminders", {
-      p_pre_min: preMin, p_pre_max: preMax,
-      p_pos_min: posMin, p_pos_max: posMax,
-    });
+    [whatsappLeads, webhookLeads] = await Promise.all([
+      sbRpc("get_pending_reminders", { p_pre_min: preMin, p_pre_max: preMax, p_pos_min: posMin, p_pos_max: posMax }),
+      sbRpc("get_pending_webhooks", {}).catch(() => []),
+    ]);
   } catch (e) {
     return res.status(200).json({ ok: false, rpc_error: e.message, window: { preMin, preMax, posMin, posMax } });
   }
 
+  // Une todos os leads para carregar configs de webinário de uma vez
+  const leads = [...whatsappLeads, ...webhookLeads];
+
   // Busca mensagens e owner por webinário
   const webinarIds = [...new Set(leads.map(l => l.webinar_id).filter(Boolean))];
-  const webinarPreMessages = {};  // webinar_id -> [{type, content}] para pré-aula
-  const webinarPosMessages = {};  // webinar_id -> [{type, content}] para pós-aula
-  const webinarOwner = {}; // webinar_id -> owner_id
+  const webinarPreMessages = {};
+  const webinarPosMessages = {};
+  const webinarOwner      = {};
+  const webinarMode       = {}; // webinar_id -> 'whatsapp' | 'webhook'
+  const webinarWebhookUrl = {}; // webinar_id -> url
   if (webinarIds.length) {
     try {
       const [msgRows, webRows] = await Promise.all([
@@ -163,7 +167,7 @@ module.exports = async function handler(req, res) {
           "webinar_dispatch_messages",
           `webinar_id=in.(${webinarIds.join(",")})&active=eq.true&order=sort_order.asc,created_at.asc`
         ),
-        sbQuery("webinars", `id=in.(${webinarIds.join(",")})&select=id,owner_id`),
+        sbQuery("webinars", `id=in.(${webinarIds.join(",")})&select=id,owner_id,settings`),
       ]);
       for (const r of msgRows) {
         if (r.dispatch_type === "pos") {
@@ -174,7 +178,11 @@ module.exports = async function handler(req, res) {
           webinarPreMessages[r.webinar_id].push(r);
         }
       }
-      for (const w of webRows) webinarOwner[w.id] = w.owner_id;
+      for (const w of webRows) {
+        webinarOwner[w.id] = w.owner_id;
+        webinarMode[w.id]       = w.settings?.dispatch_config?.mode || "whatsapp";
+        webinarWebhookUrl[w.id] = w.settings?.dispatch_config?.webhook_url || "";
+      }
     } catch {}
   }
 
@@ -228,43 +236,88 @@ module.exports = async function handler(req, res) {
       continue;
     }
 
-    // Envia WhatsApp somente após garantir o claim no banco
+    // Envia após garantir o claim no banco
 
-    // Link personalizado para o horário que este lead específico agendou
     const watchUrl = buildWatchUrl(lead.webinar_slug, lead);
+    const mode     = webinarMode[lead.webinar_id] || "whatsapp";
 
-    // Mensagens por webinário têm prioridade; fallback pro pool global
+    // ── MODO WEBHOOK ────────────────────────────────────────────────────
+    if (mode === "webhook") {
+      // Leads do get_pending_reminders com modo webhook: verifica se vieram do RPC correto
+      // Os leads de whatsappLeads com modo webhook são ignorados (timing errado);
+      // apenas webhookLeads (get_pending_webhooks) têm timing correto para webhook.
+      const isFromWebhookRpc = webhookLeads.some(wl => wl.id === lead.id && wl.reminder_type === type);
+      if (!isFromWebhookRpc) {
+        results.log.push({ name: lead.name, type, skip: "webhook_wrong_rpc" });
+        continue;
+      }
+      const wUrl = webinarWebhookUrl[lead.webinar_id];
+      if (!wUrl) {
+        results.errors++;
+        results.log.push({ name: lead.name, type, skip: "webhook_url_missing" });
+        continue;
+      }
+      const digits = (lead.phone || "").replace(/\D/g, "");
+      const payload = {
+        nome:     lead.name,
+        telefone: digits.startsWith("55") ? digits : "55" + digits,
+        link:     watchUrl,
+        tipo:     type === "pre" ? "lembrete" : "follow-up",
+      };
+      try {
+        const wRes = await fetch(wUrl, {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify(payload),
+        });
+        if (wRes.ok) {
+          results[type]++; sent++;
+          results.log.push({ name: lead.name, type, sent: true, mode: "webhook" });
+        } else {
+          const body = await wRes.text().catch(() => "");
+          results.errors++;
+          results.log.push({ name: lead.name, type, skip: "webhook_http_error", status: wRes.status, body: body.slice(0, 200) });
+        }
+      } catch (e) {
+        results.errors++;
+        results.log.push({ name: lead.name, type, skip: "webhook_network_error", error: e.message });
+      }
+      await sleep(DELAY_MS);
+      continue;
+    }
+
+    // ── MODO WHATSAPP ────────────────────────────────────────────────────
+    // Leads do get_pending_webhooks com modo whatsapp: ignora (timing incorreto para WA)
+    const isFromWebhookRpc = webhookLeads.some(wl => wl.id === lead.id && wl.reminder_type === type);
+    if (isFromWebhookRpc) {
+      results.log.push({ name: lead.name, type, skip: "whatsapp_wrong_rpc" });
+      continue;
+    }
+
     const rotIdx = Number(lead.rotation_index) || 0;
-    const wMsgsPre = webinarPreMessages[lead.webinar_id] || [];
-    const wMsgsPos = webinarPosMessages[lead.webinar_id] || [];
-    const wMsgs = type === "pre" ? wMsgsPre : wMsgsPos;
+    const wMsgs  = type === "pre"
+      ? (webinarPreMessages[lead.webinar_id] || [])
+      : (webinarPosMessages[lead.webinar_id] || []);
 
     let useAudio = false;
     let audioUrl = "";
     let text = "";
 
     if (wMsgs.length > 0) {
-      // Mensagens específicas do webinário (pre ou pos)
       const msg = wMsgs[rotIdx % wMsgs.length];
       if (msg.type === "audio") {
-        useAudio = true;
-        audioUrl = msg.content;
+        useAudio = true; audioUrl = msg.content;
       } else {
         text = msg.content
           .replace(/\{nome\}/gi, lead.name)
           .replace(/\{link\}/gi, watchUrl);
       }
     } else if (type === "pre" && messagePool.length > 0) {
-      // Fallback: pool global pré-aula
       const template = messagePool[rotIdx % messagePool.length];
-      text = template
-        .replace(/\{nome\}/gi, lead.name)
-        .replace(/\{link\}/gi, watchUrl);
+      text = template.replace(/\{nome\}/gi, lead.name).replace(/\{link\}/gi, watchUrl);
     } else if (type === "pre") {
-      // Fallback padrão pré-aula
       text = `🌸 Oi, ${lead.name}! Tudo bem?\n\nSua aula começa em breve! 💖\n\nJá pode clicar no link abaixo para entrar na transmissão:\n\n👉 ${watchUrl}\n\nTe esperamos lá! ✨`;
     } else {
-      // Fallback pós-aula: modo áudio global se configurado
       if (dispatchMode === "text_pre_audio_pos" && followupAudioUrl) {
         useAudio = true; audioUrl = followupAudioUrl;
       } else {
@@ -272,7 +325,6 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    // Resolve instância do dono do webinário (fallback: hardcoded)
     const ownerId   = webinarOwner[lead.webinar_id];
     const instances = ownerId ? (ownerInstances[ownerId] || []) : [];
     const inst      = instances.length ? instances[rotIdx % instances.length] : null;
@@ -284,9 +336,8 @@ module.exports = async function handler(req, res) {
       : await sendWhatsApp(lead.phone, text, instBase, instToken);
 
     if (ok) {
-      results[type]++;
-      sent++;
-      results.log.push({ name: lead.name, type, sent: true });
+      results[type]++; sent++;
+      results.log.push({ name: lead.name, type, sent: true, mode: "whatsapp" });
     } else {
       results.errors++;
       results.log.push({ name: lead.name, type, skip: "mega_error", status, error: sendErr });

@@ -32,10 +32,6 @@ let editingId = null; // ID da config sendo editada
   $("log-close").addEventListener("click", closeLogModal);
   $("log-backdrop").addEventListener("click", closeLogModal);
 
-  // Webhook
-  $("webhook-save-btn").addEventListener("click", saveWebhook);
-  $("webhook-test-btn").addEventListener("click", testWebhook);
-
   // Instâncias WhatsApp
   $("inst-add-btn").addEventListener("click", addInstance);
 
@@ -527,9 +523,6 @@ async function loadDispatchGlobalSettings() {
   $("dw-end").value   = globalSettings.lead_window_end_minutes   || 10;
   updateWindowExample();
 
-  // Webhook
-  $("webhook-enabled").checked = globalSettings.webhook_enabled === "true";
-  $("webhook-url").value = globalSettings.webhook_url || "";
 }
 
 async function upsertSetting(key, value) {
@@ -658,71 +651,6 @@ async function fireRemindersNow() {
   } finally {
     btn.disabled = false;
     btn.textContent = "💬 Lembretes agora";
-  }
-}
-
-// =====================================================================
-//  WEBHOOK DE DISPAROS
-// =====================================================================
-async function saveWebhook() {
-  const enabled = $("webhook-enabled").checked;
-  const url     = $("webhook-url").value.trim();
-  if (enabled && !url) {
-    toast("Informe a URL do webhook antes de ativar.", "error");
-    $("webhook-enabled").checked = false;
-    return;
-  }
-  try {
-    await Promise.all([
-      upsertSetting("webhook_enabled", enabled ? "true" : "false"),
-      upsertSetting("webhook_url", url),
-    ]);
-    globalSettings.webhook_enabled = enabled ? "true" : "false";
-    globalSettings.webhook_url     = url;
-    toast(enabled ? "Webhook ativado e salvo!" : "Webhook desativado.", "success");
-  } catch (e) {
-    toast("Erro ao salvar webhook: " + e.message, "error");
-  }
-}
-
-async function testWebhook() {
-  const url = $("webhook-url").value.trim();
-  if (!url) { toast("Informe a URL do webhook para testar.", "error"); return; }
-
-  const btn = $("webhook-test-btn");
-  btn.disabled = true;
-  btn.textContent = "Enviando…";
-
-  const resultEl  = $("webhook-test-result");
-  const resultPre = resultEl.querySelector("pre");
-
-  const payload = {
-    nome:     "Teste Webnário",
-    telefone: "5511900000000",
-    link:     window.location.origin + "/watch.html?w=slug-teste&s=schedule-teste",
-    tipo:     "lembrete",
-  };
-
-  try {
-    const res  = await fetch(url, {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify(payload),
-    });
-    const body = await res.text().catch(() => "");
-    resultEl.classList.remove("hidden");
-    resultPre.style.borderLeft = res.ok ? "3px solid #22c55e" : "3px solid #ef4444";
-    resultPre.textContent = `HTTP ${res.status}\n\nPayload enviado:\n${JSON.stringify(payload, null, 2)}\n\nResposta:\n${body.slice(0, 600)}`;
-    if (res.ok) toast("Webhook testado com sucesso!", "success");
-    else        toast(`Webhook retornou HTTP ${res.status}`, "error");
-  } catch (e) {
-    resultEl.classList.remove("hidden");
-    resultPre.style.borderLeft = "3px solid #ef4444";
-    resultPre.textContent = `Erro de rede / CORS:\n${e.message}\n\nDica: verifique se a URL aceita requisições do seu domínio.`;
-    toast("Erro ao chamar webhook: " + e.message, "error");
-  } finally {
-    btn.disabled = false;
-    btn.textContent = "Testar agora";
   }
 }
 

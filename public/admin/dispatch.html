@@ -27,48 +27,6 @@
 
       <main class="container stack" style="margin-top:1.5rem;">
 
-        <!-- ==================== WEBHOOK ==================== -->
-        <div class="card stack" id="webhook-card">
-          <div class="row spread wrap">
-            <div>
-              <h2 class="mb0">🔗 Webhook de disparos</h2>
-              <small class="muted">Substitui a instância WhatsApp. O sistema faz um POST JSON para a URL abaixo nos horários corretos.</small>
-            </div>
-            <label class="row" style="gap:.5rem;cursor:pointer;align-items:center;">
-              <input type="checkbox" id="webhook-enabled" />
-              <span style="font-size:.9rem;font-weight:600;">Webhook ativo</span>
-            </label>
-          </div>
-
-          <div class="field">
-            <label>URL do webhook</label>
-            <input type="url" id="webhook-url" placeholder="https://hook.us2.make.com/..." style="max-width:600px;" />
-            <small class="muted">O sistema vai fazer POST nesta URL quando houver lembrete ou follow-up pendente.</small>
-          </div>
-
-          <div class="card" style="background:var(--bg-soft);padding:.8rem;max-width:520px;">
-            <small class="muted" style="display:block;margin-bottom:.4rem;">Payload enviado (JSON):</small>
-            <pre style="font-size:.78rem;margin:0;white-space:pre-wrap;">{
-  "nome":     "Maria Silva",
-  "telefone": "5511999999999",
-  "link":     "https://topolucrativoaula.vercel.app/watch.html?w=...&amp;s=...",
-  "tipo":     "lembrete"
-}</pre>
-            <small class="muted" style="display:block;margin-top:.4rem;">
-              <strong>tipo:</strong> <code>"lembrete"</code> (pré-aula) ou <code>"follow-up"</code> (pós-aula)<br>
-              <strong>Timings:</strong> Agora → follow-up +90min · 30min → lembrete −10min, follow-up +90min · Agendado → lembrete −20min, follow-up +90min
-            </small>
-          </div>
-
-          <div class="row" style="gap:.6rem;flex-wrap:wrap;align-items:center;">
-            <button class="btn btn--primary btn--sm" id="webhook-save-btn">Salvar webhook</button>
-            <button class="btn btn--ghost btn--sm" id="webhook-test-btn">Testar agora</button>
-          </div>
-          <div id="webhook-test-result" class="hidden">
-            <pre style="font-size:.78rem;background:var(--bg-soft);padding:.7rem;border-radius:6px;white-space:pre-wrap;word-break:break-all;max-height:200px;overflow-y:auto;margin:0;"></pre>
-          </div>
-        </div>
-
         <!-- ==================== INSTÂNCIAS WHATSAPP ==================== -->
         <div class="card stack" id="instances-card">
           <div class="row spread wrap">
