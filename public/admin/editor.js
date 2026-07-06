@@ -1799,14 +1799,31 @@ function toggleDcModeFields() {
 }
 
 async function loadTestInstanceInfo() {
-  const inst = await getWebinarInstance();
-  const el = $("test-instance-info");
-  if (inst) {
-    el.innerHTML = `<strong>Instância ativa:</strong> <code>${inst.api_url}</code> &nbsp;|&nbsp; Token: <code>${inst.api_token}</code>`;
-    el.style.borderLeft = "3px solid var(--success, #22c55e)";
+  const dc   = webinar?.settings?.dispatch_config || {};
+  const mode = dc.mode || "whatsapp";
+  const el   = $("test-instance-info");
+
+  if (mode === "webhook") {
+    const url = dc.webhook_url || "";
+    el.innerHTML = `<strong>Modo: 🔗 Webhook</strong> &nbsp;→&nbsp; <code>${url || "URL não configurada"}</code>`;
+    el.style.borderLeft = url ? "3px solid var(--success, #22c55e)" : "3px solid #ef4444";
+    $("test-wa-fields").classList.add("hidden");
+    $("test-status-btn").style.display = "none";
+    $("test-card-title").textContent = "🧪 Teste de webhook";
+    $("test-card-desc").textContent  = "Dispara o payload JSON para a URL de webhook deste webinário.";
   } else {
-    el.innerHTML = `<strong>Fallback hardcoded:</strong> <code>${MANUAL_MEGA_BASE}</code> &nbsp;|&nbsp; Token: <code>${MANUAL_MEGA_TOKEN}</code>`;
-    el.style.borderLeft = "3px solid var(--warning, #f59e0b)";
+    const inst = await getWebinarInstance();
+    if (inst) {
+      el.innerHTML = `<strong>Modo: 📱 WhatsApp</strong> &nbsp;→&nbsp; <code>${inst.api_url}</code>`;
+      el.style.borderLeft = "3px solid var(--success, #22c55e)";
+    } else {
+      el.innerHTML = `<strong>Modo: 📱 WhatsApp (fallback)</strong> &nbsp;→&nbsp; <code>${MANUAL_MEGA_BASE}</code>`;
+      el.style.borderLeft = "3px solid var(--warning, #f59e0b)";
+    }
+    $("test-wa-fields").classList.remove("hidden");
+    $("test-status-btn").style.display = "";
+    $("test-card-title").textContent = "🧪 Teste de disparo WhatsApp";
+    $("test-card-desc").textContent  = "Envio direto pela instância deste webinário para verificar se a API está funcionando.";
   }
 }
 
@@ -1822,34 +1839,66 @@ function showTestResult(label, status, body, ok) {
 }
 
 async function testDisparoSend() {
-  const phone   = $("test-phone").value.trim();
-  const message = $("test-message").value.trim();
-  if (!phone)   { toast("Informe o número de destino.", "error"); return; }
-  if (!message) { toast("Informe a mensagem de teste.", "error"); return; }
+  const phone = $("test-phone").value.trim();
+  const name  = $("test-name").value.trim() || "Teste";
+  const tipo  = $("test-tipo").value;
+  if (!phone) { toast("Informe o número de destino.", "error"); return; }
 
   const btn = $("test-send-btn");
   btn.disabled = true; btn.textContent = "Enviando...";
 
+  const dc   = webinar?.settings?.dispatch_config || {};
+  const mode = dc.mode || "whatsapp";
+
   try {
-    const inst   = await getWebinarInstance();
-    const base   = inst ? inst.api_url.replace(/\/$/, "") : MANUAL_MEGA_BASE;
-    const token  = inst ? inst.api_token : MANUAL_MEGA_TOKEN;
-    const digits = phone.replace(/\D/g, "");
-    const to     = (digits.startsWith("55") ? digits : "55" + digits) + "@c.us";
+    if (mode === "webhook") {
+      // ── TESTE WEBHOOK ──────────────────────────────────────────────
+      const webhookUrl = dc.webhook_url || "";
+      if (!webhookUrl) { toast("Configure a URL do webhook primeiro.", "error"); return; }
 
-    const url = base + "/text";
-    console.log("[testDisparo] POST", url, { to, text: message });
+      const digits = phone.replace(/\D/g, "");
+      const payload = {
+        nome:     name,
+        telefone: digits.startsWith("55") ? digits : "55" + digits,
+        link:     publicUrl(webinar.slug) + "&s=teste-manual",
+        tipo,
+      };
+      console.log("[testWebhook] POST", webhookUrl, payload);
+      const res  = await fetch(webhookUrl, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify(payload),
+      });
+      const body = await res.text();
+      console.log("[testWebhook] resposta:", res.status, body);
+      showTestResult(`POST ${webhookUrl}\n\nPayload:\n${JSON.stringify(payload, null, 2)}`, res.status, body, res.ok);
+      if (res.ok) toast("Webhook disparado com sucesso!", "success");
+      else        toast(`Webhook retornou HTTP ${res.status}`, "error");
 
-    const res  = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ messageData: { to, text: message } }),
-    });
-    const body = await res.text();
-    console.log("[testDisparo] resposta:", res.status, body);
-    showTestResult(`POST ${url}\nTo: ${to}`, res.status, body, res.ok);
-    if (res.ok) toast("Mensagem enviada! Verifique o WhatsApp.", "success");
-    else        toast(`API retornou HTTP ${res.status}`, "error");
+    } else {
+      // ── TESTE WHATSAPP ─────────────────────────────────────────────
+      const message = $("test-message").value.trim();
+      if (!message) { toast("Informe a mensagem de teste.", "error"); return; }
+
+      const inst   = await getWebinarInstance();
+      const base   = inst ? inst.api_url.replace(/\/$/, "") : MANUAL_MEGA_BASE;
+      const token  = inst ? inst.api_token : MANUAL_MEGA_TOKEN;
+      const digits = phone.replace(/\D/g, "");
+      const to     = (digits.startsWith("55") ? digits : "55" + digits) + "@c.us";
+
+      const url = base + "/text";
+      console.log("[testDisparo] POST", url, { to, text: message });
+      const res  = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ messageData: { to, text: message } }),
+      });
+      const body = await res.text();
+      console.log("[testDisparo] resposta:", res.status, body);
+      showTestResult(`POST ${url}\nTo: ${to}`, res.status, body, res.ok);
+      if (res.ok) toast("Mensagem enviada! Verifique o WhatsApp.", "success");
+      else        toast(`API retornou HTTP ${res.status}`, "error");
+    }
   } catch (e) {
     console.error("[testDisparo] erro:", e);
     showTestResult("ERRO de rede / CORS", 0, e.message, false);
