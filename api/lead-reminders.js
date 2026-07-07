@@ -160,6 +160,7 @@ module.exports = async function handler(req, res) {
   const webinarOwner      = {};
   const webinarMode       = {}; // webinar_id -> 'whatsapp' | 'webhook'
   const webinarWebhookUrl = {}; // webinar_id -> url
+  let webinarLoadError    = null;
   if (webinarIds.length) {
     try {
       const [msgRows, webRows] = await Promise.all([
@@ -183,7 +184,19 @@ module.exports = async function handler(req, res) {
         webinarMode[w.id]       = w.settings?.dispatch_config?.mode || "whatsapp";
         webinarWebhookUrl[w.id] = w.settings?.dispatch_config?.webhook_url || "";
       }
-    } catch {}
+    } catch (e) {
+      webinarLoadError = e.message;
+      // Não processar leads se não conseguimos carregar o modo do webinário
+      // (evita claims incorretos que marcam o lead como enviado sem disparar)
+      return res.status(200).json({
+        ok: false,
+        error: "webinar_load_failed",
+        detail: e.message,
+        webinar_ids: webinarIds,
+        found: leads.length,
+        time: new Date().toISOString(),
+      });
+    }
   }
 
   // Busca instâncias WhatsApp por dono do webinário
@@ -406,10 +419,13 @@ module.exports = async function handler(req, res) {
     time: new Date().toISOString(),
     window: { preMin, preMax, posMin, posMax },
     found: leads.length,
+    found_whatsapp: whatsappLeads.length,
+    found_webhook: webhookLeads.length,
     pre_sent: results.pre,
     pos_sent: results.pos,
     scheduled_sent: schedSent,
     errors: results.errors,
+    webinar_modes: webinarMode,
     log: results.log,
   });
 };

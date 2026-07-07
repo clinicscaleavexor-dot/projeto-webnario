@@ -635,15 +635,22 @@ async function fireRemindersNow() {
       toast("Erro ao disparar lembretes: " + (data.error || res.status), "error");
       return;
     }
+    if (!data.ok && data.error) {
+      status.textContent = `Erro: ${data.error} — ${data.detail || ""}`;
+      toast("Erro na API de lembretes: " + data.error, "error");
+      console.error("lead-reminders erro:", data);
+      return;
+    }
     const total = (data.pre_sent || 0) + (data.pos_sent || 0) + (data.scheduled_sent || 0);
+    const skips = (data.log || []).filter(l => l.skip).map(l => `${l.name}(${l.skip})`).join(", ");
     status.textContent = total > 0
-      ? `✓ ${total} lembrete(s) enviado(s) — pré: ${data.pre_sent}, pós: ${data.pos_sent}`
-      : `Sem lembretes pendentes agora (encontrou ${data.found || 0} leads)`;
+      ? `✓ ${total} enviado(s) — pré: ${data.pre_sent}, pós: ${data.pos_sent} | encontrou: whatsapp=${data.found_whatsapp ?? "?"} webhook=${data.found_webhook ?? "?"}`
+      : `Nenhum pendente (whatsapp=${data.found_whatsapp ?? "?"} webhook=${data.found_webhook ?? "?"}${skips ? " | " + skips : ""})`;
     toast(total > 0 ? `${total} lembrete(s) enviado(s)!` : "Nenhum lembrete pendente agora.", "success");
+    console.info("lead-reminders:", data);
 
     if (data.errors > 0) {
-      toast(`${data.errors} erro(s) no envio. Veja o console.`, "error");
-      console.warn("lead-reminders log:", data.log);
+      toast(`${data.errors} erro(s) no envio.`, "error");
     }
   } catch (e) {
     status.textContent = "Erro de conexão.";
