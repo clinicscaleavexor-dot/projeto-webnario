@@ -19,9 +19,10 @@ export function initSidebar(profile, activeNav) {
       '<li><a href="financeiro.html" class="' + finClass + '">💰 Financeiro</a></li>';
   }
 
-  const wClass = a === "webinarios" ? "active" : "";
-  const lClass = a === "leads"      ? "active" : "";
-  const name   = profile?.name || "Você";
+  const wClass  = a === "webinarios" ? "active" : "";
+  const lClass  = a === "leads"      ? "active" : "";
+  const fmClass = a === "formulario" ? "active" : "";
+  const name    = profile?.name || "Você";
 
   sidebar.innerHTML =
     '<div class="sidebar-brand"><span class="dot"></span> Webnário</div>' +
@@ -29,6 +30,7 @@ export function initSidebar(profile, activeNav) {
       '<li><a href="dashboard.html" class="' + wClass + '">📺 Webinários</a></li>' +
       adminLinks +
       '<li><a href="leads.html" class="' + lClass + '">👥 Leads</a></li>' +
+      '<li><a href="formulario.html" class="' + fmClass + '">📝 Formulário</a></li>' +
     '</ul>' +
     '<div class="sidebar-footer">' +
       '<span class="pill" style="font-size:.8rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + name + '</span>' +

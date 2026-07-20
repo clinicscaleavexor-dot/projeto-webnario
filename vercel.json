@@ -3,7 +3,8 @@
   "functions": {
     "api/dispatch.js": { "maxDuration": 30 },
     "api/lead-reminders.js": { "maxDuration": 30 },
-    "api/webhook-lead.js": { "maxDuration": 10 }
+    "api/webhook-lead.js": { "maxDuration": 10 },
+    "api/webhook-form.js": { "maxDuration": 10 }
   },
   "headers": [
     {

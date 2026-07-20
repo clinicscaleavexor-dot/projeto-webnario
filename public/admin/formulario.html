@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Webnário · Formulário</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/css/styles.css" />
+  <script src="../config.js"></script>
+</head>
+<body>
+  <div class="admin-layout">
+    <aside id="sidebar"></aside>
+
+    <div class="main-content">
+      <main class="container stack">
+        <div class="row spread wrap">
+          <div>
+            <h1 class="mb0">Formulário</h1>
+            <small class="muted">Formulários avulsos, isolados de qualquer webinário. Cada um tem seu próprio webhook e sua própria lista de leads.</small>
+          </div>
+          <button class="btn btn--primary" id="new-form">+ Novo formulário</button>
+        </div>
+        <div id="list" class="list"></div>
+      </main>
+    </div>
+  </div>
+
+  <script type="module" src="formulario.js"></script>
+</body>
+</html>
