@@ -37,13 +37,20 @@
 }
 .watch-main, .watch-side { width: 100%; }
 
-/* Player em formato retrato — ocupa quase todo o quadro */
+/* Player em formato retrato — ocupa o quadro inteiro, sem sobra de largura
+   nem de altura (a largura é derivada da altura máxima disponível, então
+   a caixa nunca "sobra" espaço nas laterais). */
 .player-wrap {
   aspect-ratio: 9 / 16;
-  max-height: 76vh;
-  width: 100%;
+  width: min(100%, calc(78vh * 9 / 16));
+  margin: 0 auto;
   border-radius: 20px;
   box-shadow: 0 16px 46px rgba(0,0,0,.5);
+}
+/* Preenche a caixa inteira (corta um pouco as bordas se o vídeo não for
+   exatamente 9:16) em vez de sobrar tarja preta como o "contain" padrão. */
+.player-wrap .player {
+  object-fit: cover;
 }
 
 /* Chat compacto abaixo do vídeo, com opção de minimizar */
@@ -75,5 +82,5 @@
 
 @media (max-width: 480px) {
   .watch-shell { padding: .6rem .55rem 1.1rem; }
-  .player-wrap { max-height: 70vh; border-radius: 16px; }
+  .player-wrap { width: min(100%, calc(72vh * 9 / 16)); border-radius: 16px; }
 }
