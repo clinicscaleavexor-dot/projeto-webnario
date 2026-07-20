@@ -50,6 +50,21 @@
         <p class="muted mt0">Suba um arquivo MP4 ou cole a URL de um vídeo já hospedado.</p>
 
         <div class="field">
+          <label>Formato da página da live</label>
+          <div class="row" style="gap:1.2rem;flex-wrap:wrap;margin-top:.2rem;">
+            <label class="row" style="gap:.4rem;cursor:pointer;align-items:center;">
+              <input type="radio" name="video-layout" id="layout-classic" value="classic" checked />
+              <span>🖥️ Clássico (16:9)</span>
+            </label>
+            <label class="row" style="gap:.4rem;cursor:pointer;align-items:center;">
+              <input type="radio" name="video-layout" id="layout-vertical" value="vertical" />
+              <span>📱 Vertical / Instagram (9:16)</span>
+            </label>
+          </div>
+          <small class="muted">Vertical usa vídeo em retrato ocupando quase todo o quadro, fundo roxo escuro e chat abaixo (com opção de minimizar) — ideal pra tráfego de redes sociais.</small>
+        </div>
+
+        <div class="field">
           <label>Enviar arquivo de vídeo</label>
           <input type="file" id="video-file" accept="video/*" />
           <div id="upload-progress" class="progress hidden"><div class="progress__bar" id="upload-bar"></div></div>
@@ -753,6 +768,6 @@
     </div><!-- /.main-content -->
   </div><!-- /.admin-layout -->
 
-  <script type="module" src="editor.js?v=20260720"></script>
+  <script type="module" src="editor.js?v=20260720b"></script>
 </body>
 </html>

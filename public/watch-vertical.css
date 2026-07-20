@@ -1,0 +1,79 @@
+/* ===================================================================
+   Página pública da "live" — formato VERTICAL (estilo Instagram/Stories)
+   Carregado depois de watch.css: só sobrescreve o que muda no layout.
+   =================================================================== */
+
+.watch-body {
+  background: linear-gradient(180deg, #2c1a52 0%, #1c1038 55%, #100a1e 100%);
+  min-height: 100vh;
+}
+
+.watch-shell {
+  max-width: 460px;
+  margin: 0 auto;
+  padding: .8rem .7rem 1.4rem;
+}
+
+/* Headline curta acima do vídeo */
+.watch-top {
+  padding: .1rem .1rem .6rem;
+  flex-wrap: nowrap;
+  gap: .5rem;
+}
+.watch-title {
+  font-size: .92rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+.viewers { font-size: .76rem; white-space: nowrap; }
+
+/* Coluna única: vídeo em cima, chat embaixo (ordem natural do HTML) */
+.watch-grid {
+  display: flex;
+  flex-direction: column;
+  gap: .9rem;
+}
+.watch-main, .watch-side { width: 100%; }
+
+/* Player em formato retrato — ocupa quase todo o quadro */
+.player-wrap {
+  aspect-ratio: 9 / 16;
+  max-height: 76vh;
+  width: 100%;
+  border-radius: 20px;
+  box-shadow: 0 16px 46px rgba(0,0,0,.5);
+}
+
+/* Chat compacto abaixo do vídeo, com opção de minimizar */
+.chat {
+  min-height: 0;
+  max-height: 42vh;
+  transition: max-height .25s ease;
+}
+.chat-minimize-btn {
+  width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+  border: 1px solid var(--border); background: var(--bg-elev);
+  color: var(--text); font-size: 1.05rem; font-weight: 800; line-height: 1;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  padding: 0;
+}
+.chat-minimize-btn:hover { background: var(--accent); border-color: var(--accent); }
+
+.chat--minimized {
+  max-height: none;
+}
+.chat--minimized .chat-messages,
+.chat--minimized .chat-input-viewer,
+.chat--minimized .chat-input-real {
+  display: none;
+}
+
+/* Banner lateral não é usado neste formato (fica só topo/abaixo do vídeo) */
+.banner-slot--side { display: none; }
+
+@media (max-width: 480px) {
+  .watch-shell { padding: .6rem .55rem 1.1rem; }
+  .player-wrap { max-height: 70vh; border-radius: 16px; }
+}

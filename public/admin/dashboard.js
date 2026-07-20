@@ -41,7 +41,7 @@ async function loadList() {
   listEl.innerHTML = `<p class="muted">Carregando...</p>`;
   const { data, error } = await supabase
     .from("webinars")
-    .select("id, title, slug, status, scheduled_start_at, updated_at")
+    .select("id, title, slug, status, scheduled_start_at, updated_at, settings")
     .order("updated_at", { ascending: false });
 
   if (error) {
@@ -67,14 +67,14 @@ async function loadList() {
       <div class="row wrap">
         <button class="btn btn--sm" data-act="copy">Copiar link live</button>
         <button class="btn btn--sm" data-act="copy-sched">Link de agendamento</button>
-        <a class="btn btn--sm" href="${publicUrl(w.slug)}" target="_blank">Abrir live</a>
+        <a class="btn btn--sm" href="${publicUrl(w.slug, watchPage(w))}" target="_blank">Abrir live</a>
         <a class="btn btn--sm btn--primary" href="editor.html?id=${w.id}">Configurar</a>
         <a class="btn btn--sm" href="editor.html?id=${w.id}&tab=leads">Ver Leads</a>
         <button class="btn btn--sm" data-act="dup">Duplicar</button>
         <button class="btn btn--sm btn--danger" data-act="del">Excluir</button>
       </div>`;
 
-    item.querySelector('[data-act="copy"]').addEventListener("click", () => copyLink(w.slug));
+    item.querySelector('[data-act="copy"]').addEventListener("click", () => copyLink(w.slug, watchPage(w)));
     item.querySelector('[data-act="copy-sched"]').addEventListener("click", () => copyScheduleLink(w.slug));
     item.querySelector('[data-act="dup"]').addEventListener("click", () => duplicate(w.id));
     item.querySelector('[data-act="del"]').addEventListener("click", () => remove(w.id, w.title));
@@ -88,8 +88,12 @@ function publicUrl(slug, page = "watch.html") {
   return new URL(`${page}?w=${encodeURIComponent(slug)}`, new URL("../", location.href)).href;
 }
 
-async function copyLink(slug) {
-  const url = publicUrl(slug);
+function watchPage(webinar) {
+  return webinar?.settings?.layout === "vertical" ? "watch-vertical.html" : "watch.html";
+}
+
+async function copyLink(slug, page = "watch.html") {
+  const url = publicUrl(slug, page);
   try { await navigator.clipboard.writeText(url); toast("Link copiado!", "success"); }
   catch { toast(url); }
 }

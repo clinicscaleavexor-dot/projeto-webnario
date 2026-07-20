@@ -313,6 +313,8 @@ async function loadWebinar() {
   $("timezone").value = data.timezone || "America/Sao_Paulo";
 
   const s = data.settings || {};
+  const layoutEl = document.querySelector(`[name="video-layout"][value="${s.layout === "vertical" ? "vertical" : "classic"}"]`);
+  if (layoutEl) layoutEl.checked = true;
   const v = s.viewers || {};
   $("v-base").value = v.base || 120;
   $("v-peak").value = v.peak || 850;
@@ -364,10 +366,11 @@ async function loadWebinar() {
   await populateLeadsFilter();
 }
 
-function publicUrl(slug, page = "watch.html") {
+function publicUrl(slug, page) {
+  const resolvedPage = page || (webinar?.settings?.layout === "vertical" ? "watch-vertical.html" : "watch.html");
   const domain = profile?.custom_domain;
-  if (domain) return `https://${domain}/${page}?w=${encodeURIComponent(slug)}`;
-  return new URL(`${page}?w=${encodeURIComponent(slug)}`, new URL("../", location.href)).href;
+  if (domain) return `https://${domain}/${resolvedPage}?w=${encodeURIComponent(slug)}`;
+  return new URL(`${resolvedPage}?w=${encodeURIComponent(slug)}`, new URL("../", location.href)).href;
 }
 function updateLinks() {
   $("preview-link").href = publicUrl(webinar.slug) + "&mode=now";
@@ -385,6 +388,7 @@ async function saveCore() {
 
   const settings = {
     ...(webinar.settings || {}),
+    layout: document.querySelector("[name='video-layout']:checked")?.value === "vertical" ? "vertical" : "classic",
     viewers: {
       base: parseInt($("v-base").value, 10) || 120,
       peak: parseInt($("v-peak").value, 10) || 850,
@@ -434,6 +438,7 @@ async function saveCore() {
   btn.disabled = false; btn.textContent = "Salvar";
   if (error) return toast("Erro ao salvar: " + error.message, "error");
   webinar = data;
+  updateLinks();
   toast("Alterações salvas!", "success");
 }
 

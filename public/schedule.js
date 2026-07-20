@@ -63,7 +63,8 @@ function showError() {
 }
 
 function watchUrl(slug, params = {}) {
-  const url = new URL("watch.html", location.href);
+  const page = webinarData?.settings?.layout === "vertical" ? "watch-vertical.html" : "watch.html";
+  const url = new URL(page, location.href);
   url.searchParams.set("w", slug);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   return url.href;

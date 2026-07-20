@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Transmissão ao vivo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/styles.css" />
+  <link rel="stylesheet" href="watch.css" />
+  <link rel="stylesheet" href="watch-vertical.css" />
+  <script src="config.js"></script>
+</head>
+<body class="watch-body">
+  <!-- Estado de carregamento / erro -->
+  <div id="loading" class="fullscreen-msg"><div class="spinner"></div><p>Carregando transmissão...</p></div>
+  <div id="error" class="fullscreen-msg hidden"><h2>Transmissão não encontrada</h2><p class="muted">Verifique o link ou tente novamente mais tarde.</p></div>
+
+  <!-- App -->
+  <div id="app" class="watch-shell hidden">
+    <header class="watch-top">
+      <div class="row" style="gap:.7rem;">
+        <span class="live-badge"><span class="live-dot"></span> AO VIVO</span>
+        <h1 id="title" class="watch-title">Webinário</h1>
+      </div>
+      <div class="viewers"><span id="viewer-count">0</span> assistindo</div>
+    </header>
+
+    <!-- Banner topo -->
+    <div id="banner-top" class="banner-slot banner-slot--top"></div>
+
+    <div class="watch-grid">
+      <!-- Coluna principal -->
+      <div class="watch-main">
+        <div class="player-wrap">
+          <video id="video" class="player" playsinline preload="auto"></video>
+          <!-- Container do player YouTube (ativado quando a URL for do YT) -->
+          <div id="yt-player" class="player hidden"></div>
+
+          <!-- Overlay: contagem regressiva -->
+          <div id="overlay-waiting" class="overlay hidden">
+            <div class="overlay-inner">
+              <p id="waiting-text" class="overlay-sub">A transmissão vai começar em breve.</p>
+              <div id="countdown" class="countdown">--:--:--</div>
+              <p class="overlay-sub muted" id="waiting-when"></p>
+            </div>
+          </div>
+
+          <!-- Overlay: encerrada -->
+          <div id="overlay-ended" class="overlay hidden">
+            <div class="overlay-inner">
+              <h2>Transmissão encerrada</h2>
+              <p id="ended-text" class="overlay-sub">Esta transmissão foi encerrada.</p>
+            </div>
+          </div>
+
+          <!-- Botão ativar som -->
+          <button id="unmute" class="unmute-btn hidden">🔇 Toque para ativar o som</button>
+        </div>
+
+        <!-- Admin: controle de tempo para testes (somente admin/dono) -->
+        <div id="admin-scrubber" class="admin-scrubber hidden">
+          <div class="as-row">
+            <span class="as-label">⏩ Teste admin</span>
+            <span id="as-time" class="as-time">0:00 / 0:00</span>
+            <button id="as-reset" class="btn btn--sm btn--ghost">↺ Real</button>
+          </div>
+          <input type="range" id="as-range" min="0" max="3600" value="0" step="1" class="as-range" />
+          <div class="as-btns">
+            <button class="btn btn--sm btn--ghost as-jump" data-secs="30">+30s</button>
+            <button class="btn btn--sm btn--ghost as-jump" data-secs="60">+1 min</button>
+            <button class="btn btn--sm btn--ghost as-jump" data-secs="300">+5 min</button>
+            <button class="btn btn--sm btn--ghost as-jump" data-secs="600">+10 min</button>
+          </div>
+        </div>
+
+        <!-- Barra de CTA -->
+        <div id="cta-bar" class="cta-bar hidden"></div>
+
+        <!-- Banner abaixo do vídeo -->
+        <div id="banner-below" class="banner-slot"></div>
+      </div>
+
+      <!-- Coluna lateral: chat (aparece abaixo do vídeo neste layout) + banner lateral -->
+      <aside class="watch-side">
+        <div class="chat" id="chat">
+          <div class="chat-head">
+            <span>Chat ao vivo</span>
+            <div class="row" style="gap:.6rem;align-items:center;">
+              <span class="chat-online"><span id="viewer-count-2">0</span> online</span>
+              <button type="button" id="chat-minimize-btn" class="chat-minimize-btn" title="Minimizar chat">–</button>
+            </div>
+          </div>
+          <div id="chat-messages" class="chat-messages"></div>
+          <div class="chat-input-viewer" id="chat-input-viewer">
+            <div id="viewer-name-wrap" class="viewer-name-wrap hidden">
+              <input id="viewer-name-inp" placeholder="Seu nome..." maxlength="50" />
+              <small class="muted">Seu nome aparecerá no chat</small>
+            </div>
+            <div class="row" style="gap:.4rem;">
+              <input type="text" id="viewer-msg-inp" placeholder="Envie uma mensagem..." maxlength="300" />
+              <button class="btn btn--sm btn--primary" type="button" id="viewer-send">Enviar</button>
+            </div>
+          </div>
+          <div class="chat-input-real hidden" id="chat-input-real">
+            <input type="text" id="chat-text" placeholder="Digite como ADM..." maxlength="300" />
+            <button class="btn btn--sm btn--primary" type="button" id="chat-send">Enviar</button>
+          </div>
+        </div>
+        <div id="banner-side" class="banner-slot banner-slot--side"></div>
+      </aside>
+    </div>
+  </div>
+
+  <script type="module" src="watch.js?v=20260619"></script>
+  <script>
+    // Minimizar/expandir o chat (só interface — não mexe na lógica da live)
+    document.getElementById("chat-minimize-btn").addEventListener("click", function () {
+      const chat = document.getElementById("chat");
+      const minimized = chat.classList.toggle("chat--minimized");
+      this.textContent = minimized ? "+" : "–";
+      this.title = minimized ? "Expandir chat" : "Minimizar chat";
+    });
+  </script>
+</body>
+</html>
