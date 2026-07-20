@@ -97,6 +97,24 @@ const $ = (id) => document.getElementById(id);
       if (lead) deleteLead(lead.id, delBtn);
     }
   });
+  $("lfw-copy-url").addEventListener("click", () => {
+    navigator.clipboard.writeText($("lfw-url").value).then(() => toast("URL copiada!", "success"));
+  });
+  $("lfw-refresh").addEventListener("click", () => loadFormLeads());
+  $("lfw-export").addEventListener("click", exportFormLeadsCsv);
+  $("lfw-list").addEventListener("click", (e) => {
+    const phoneEl = e.target.closest(".lead-phone-copy");
+    if (phoneEl) {
+      navigator.clipboard.writeText(phoneEl.dataset.phone).then(() => {
+        const orig = phoneEl.textContent;
+        phoneEl.textContent = "Copiado!";
+        setTimeout(() => phoneEl.textContent = orig, 1500);
+      });
+      return;
+    }
+    const delBtn = e.target.closest(".lfw-delete-btn");
+    if (delBtn) deleteFormLead(delBtn.dataset.id, delBtn);
+  });
 })();
 
 // ---------- Tabs ----------
@@ -113,15 +131,17 @@ function setupTabs() {
   document.querySelectorAll(".tab").forEach((tab) => {
     tab.addEventListener("click", () => {
       activateTab(tab.dataset.tab);
-      if (tab.dataset.tab === "leads")    openLeadsTab();
-      if (tab.dataset.tab === "disparos") openDisparosTab();
+      if (tab.dataset.tab === "leads")      openLeadsTab();
+      if (tab.dataset.tab === "disparos")   openDisparosTab();
+      if (tab.dataset.tab === "leads-form") openLeadsFormTab();
     });
   });
   const tabParam = new URLSearchParams(location.search).get("tab");
   if (tabParam) {
     activateTab(tabParam);
-    if (tabParam === "leads")    openLeadsTab();
-    if (tabParam === "disparos") openDisparosTab();
+    if (tabParam === "leads")      openLeadsTab();
+    if (tabParam === "disparos")   openDisparosTab();
+    if (tabParam === "leads-form") openLeadsFormTab();
   }
 }
 
@@ -1759,6 +1779,98 @@ async function deleteLead(leadId, btn) {
   }
   toast("Lead removido.", "success");
   await loadLeads();
+}
+
+// =====================================================================
+//  ABA LEADS FORMULÁRIO — leads recebidos via webhook externo
+//  (só salva, nenhum disparo é feito a partir daqui)
+// =====================================================================
+let lfwCache = [];
+let lfwReady = false;
+
+function lfwWebhookUrl() {
+  return `${location.origin}/api/webhook-lead?webinar_id=${WID}`;
+}
+
+function openLeadsFormTab() {
+  $("lfw-url").value = lfwWebhookUrl();
+  if (!lfwReady) { lfwReady = true; loadFormLeads(); }
+}
+
+async function loadFormLeads() {
+  const host = $("lfw-list");
+  host.innerHTML = `<div class="empty">Carregando...</div>`;
+
+  const { data, error } = await supabase
+    .from("webhook_form_leads")
+    .select("*")
+    .eq("webinar_id", WID)
+    .order("created_at", { ascending: false });
+
+  if (error) { host.innerHTML = `<div class="empty">Erro: ${escapeHtml(error.message)}</div>`; return; }
+  if (!data || !data.length) { host.innerHTML = `<div class="empty">Nenhum lead recebido pelo webhook ainda.</div>`; return; }
+
+  lfwCache = data;
+
+  host.innerHTML = `
+    <div class="leads-summary muted" style="font-size:.85rem;margin-bottom:.6rem;">
+      ${data.length} lead${data.length !== 1 ? "s" : ""}
+    </div>
+    <div class="leads-table-wrap">
+      <table class="leads-table">
+        <thead>
+          <tr>
+            <th>Nome</th>
+            <th>Telefone</th>
+            <th>Recebido em</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="lfw-tbody"></tbody>
+      </table>
+    </div>`;
+
+  const tbody = $("lfw-tbody");
+  for (const lead of data) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${escapeHtml(lead.name)}</td>
+      <td><span class="lead-phone-copy" data-phone="${escapeHtml(lead.phone)}" title="Clique para copiar">${escapeHtml(lead.phone)}</span></td>
+      <td>${new Date(lead.created_at).toLocaleString("pt-BR")}</td>
+      <td><button class="btn btn--sm btn--danger lfw-delete-btn" data-id="${lead.id}" title="Remover lead">×</button></td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+async function deleteFormLead(leadId, btn) {
+  if (!confirm("Remover este lead permanentemente? Esta ação não pode ser desfeita.")) return;
+  if (btn) { btn.disabled = true; btn.textContent = "..."; }
+  const { error } = await supabase.from("webhook_form_leads").delete().eq("id", leadId);
+  if (error) {
+    toast("Erro ao remover: " + error.message, "error");
+    if (btn) { btn.disabled = false; btn.textContent = "×"; }
+    return;
+  }
+  toast("Lead removido.", "success");
+  await loadFormLeads();
+}
+
+function exportFormLeadsCsv() {
+  if (!lfwCache.length) { toast("Nenhum lead para exportar.", "error"); return; }
+
+  const lines = ["Nome,Telefone,Recebido em"];
+  for (const lead of lfwCache) {
+    const row = [lead.name, lead.phone, new Date(lead.created_at).toLocaleString("pt-BR")]
+      .map((v) => `"${String(v).replace(/"/g, '""')}"`);
+    lines.push(row.join(","));
+  }
+
+  const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `leads-formulario-${WID.slice(0, 8)}.csv`;
+  a.click();
 }
 
 // =====================================================================

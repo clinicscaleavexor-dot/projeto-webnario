@@ -40,6 +40,7 @@
       <button class="tab" data-tab="disparos">Disparos</button>
       <button class="tab" data-tab="form">Formulário</button>
       <button class="tab" data-tab="leads">Leads</button>
+      <button class="tab" data-tab="leads-form">Leads Formulário</button>
     </nav>
 
     <!-- ============ VÍDEO ============ -->
@@ -707,10 +708,51 @@
         <div id="sched-msg-list"><div class="empty muted" style="font-size:.85rem;">Nenhuma mensagem agendada.</div></div>
       </div>
     </section>
+
+    <!-- ============ LEADS FORMULÁRIO (WEBHOOK) ============ -->
+    <section class="tab-panel" data-panel="leads-form">
+      <div class="card stack">
+        <div>
+          <h2 class="mb0">Webhook de recebimento</h2>
+          <small class="muted">Configure esta URL na sua ferramenta externa (formulário, landing page, automação) para enviar leads direto pra cá. Nenhum disparo é feito automaticamente — o lead só fica salvo na lista abaixo.</small>
+        </div>
+        <div class="field">
+          <label>URL do webhook (método POST)</label>
+          <div class="row" style="gap:.5rem;">
+            <input id="lfw-url" readonly style="flex:1;" />
+            <button class="btn btn--sm" id="lfw-copy-url">Copiar URL</button>
+          </div>
+        </div>
+        <div>
+          <label>Corpo esperado (JSON)</label>
+          <pre style="background:var(--bg-soft);padding:.8rem;border-radius:6px;font-size:.82rem;overflow-x:auto;">{
+  "nome": "Maria Silva",
+  "telefone": "11999999999"
+}</pre>
+          <small class="muted">Também aceita as chaves <code>name</code> / <code>phone</code> / <code>whatsapp</code> no lugar de <code>nome</code> / <code>telefone</code>.</small>
+        </div>
+      </div>
+
+      <div class="card stack" style="margin-top:1rem;">
+        <div class="row spread wrap">
+          <div>
+            <h2 class="mb0">Leads recebidos</h2>
+            <small class="muted">Pessoas cadastradas pelo webhook acima.</small>
+          </div>
+          <div class="row wrap" style="gap:.6rem;">
+            <button class="btn btn--sm" id="lfw-export">Exportar CSV</button>
+            <button class="btn btn--sm btn--primary" id="lfw-refresh">Atualizar</button>
+          </div>
+        </div>
+        <div id="lfw-list">
+          <div class="empty">Carregando...</div>
+        </div>
+      </div>
+    </section>
   </main>
     </div><!-- /.main-content -->
   </div><!-- /.admin-layout -->
 
-  <script type="module" src="editor.js?v=20260619"></script>
+  <script type="module" src="editor.js?v=20260720"></script>
 </body>
 </html>
