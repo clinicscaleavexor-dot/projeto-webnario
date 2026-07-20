@@ -101,6 +101,29 @@
         </div>
       </div>
 
+      <div class="card stack" style="margin-top:1rem;">
+        <div>
+          <h2 class="mb0">✂️ Cortes no vídeo</h2>
+          <p class="muted mt0">Quando o vídeo chegar no início de um trecho, ele pula direto pro fim — quem estiver assistindo nunca vê o que está entre os dois tempos.</p>
+        </div>
+        <div id="cuts-list" class="sub-list"></div>
+
+        <div class="card" style="background:var(--bg-soft);padding:.9rem;">
+          <h3 class="mb0" style="font-size:.95rem;">+ Novo corte</h3>
+          <div class="field-row" style="margin-top:.6rem;">
+            <div class="field" style="max-width:180px;">
+              <label>De (MM:SS ou HH:MM:SS)</label>
+              <input id="cut-from" placeholder="ex: 6:02" />
+            </div>
+            <div class="field" style="max-width:180px;">
+              <label>Até (MM:SS ou HH:MM:SS)</label>
+              <input id="cut-to" placeholder="ex: 8:19" />
+            </div>
+          </div>
+          <button class="btn btn--primary btn--sm" id="add-cut">Adicionar corte</button>
+        </div>
+      </div>
+
     </section>
 
     <!-- ============ AGENDA ============ -->

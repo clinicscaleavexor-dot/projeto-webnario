@@ -23,6 +23,9 @@ let webinarId = null;
 let adminTimeShift = 0; // segundos de avanço para testes (somente admin)
 let startOffset = 0;   // segundos a pular no início (configurado no editor)
 let unmuteRequested = false; // usuário clicou em desmutar antes do player estar pronto
+let videoCuts = [];    // [{ from, to }] em segundos — trechos pulados no arquivo original
+let cutsTotalSeconds = 0;
+let effectiveDuration = 0; // duração percebida por quem assiste (duration - cortes)
 
 // --- YouTube ---
 let isYouTube = false;
@@ -60,6 +63,11 @@ async function init() {
   }
   clockOffsetMs = new Date(pkgResult.server_now).getTime() - Date.now();
   startOffset = webinar.settings?.video_start_offset || 0;
+  videoCuts = (Array.isArray(webinar.settings?.video_cuts) ? webinar.settings.video_cuts : [])
+    .filter((c) => Number.isFinite(c?.from) && Number.isFinite(c?.to) && c.to > c.from)
+    .sort((a, b) => a.from - b.from);
+  cutsTotalSeconds = videoCuts.reduce((sum, c) => sum + (c.to - c.from), 0);
+  effectiveDuration = duration ? Math.max(0, duration - cutsTotalSeconds) : 0;
 
   $("loading").classList.add("hidden");
   $("app").classList.remove("hidden");
@@ -266,8 +274,23 @@ function elapsedSeconds() {
   if (!scheduledMs) return 0;
   return (serverNow() - scheduledMs) / 1000 + adminTimeShift;
 }
-// Posição real do player = elapsed + offset (startOffset desloca só o vídeo, não o tempo)
-function videoSeconds(elapsed) { return Math.max(0, elapsed + startOffset); }
+// Posição real do player = elapsed + offset, pulando os trechos cortados
+// (startOffset desloca só o vídeo, não o tempo; os cortes "somem" da experiência de quem assiste).
+function videoSeconds(elapsed) {
+  const raw = Math.max(0, elapsed + startOffset);
+  return mapToVideoPos(raw);
+}
+
+// Mapeia uma posição na linha do tempo que quem assiste percebe (sem os cortes)
+// para a posição real dentro do arquivo de vídeo (com os cortes).
+function mapToVideoPos(pos) {
+  let p = pos;
+  for (const c of videoCuts) {
+    if (p >= c.from) p += (c.to - c.from);
+    else break;
+  }
+  return p;
+}
 
 async function resync() {
   const { data: sn } = await supabase.rpc("server_now");
@@ -278,7 +301,7 @@ function tick() {
   const elapsed = elapsedSeconds();
 
   if (!scheduledMs || elapsed < 0) setMode("waiting", elapsed);
-  else if (duration && elapsed >= duration) setMode("ended");
+  else if (effectiveDuration && elapsed >= effectiveDuration) setMode("ended");
   else setMode("live", elapsed);
 
   if (mode === "live") {
@@ -286,7 +309,7 @@ function tick() {
     revealComments(elapsed);
     revealCtas(elapsed);
   }
-  renderBanners(mode === "live" ? elapsed : (mode === "ended" ? (duration || elapsed) : 0));
+  renderBanners(mode === "live" ? elapsed : (mode === "ended" ? (effectiveDuration || elapsed) : 0));
   updateViewers(elapsed);
   if (isAdmin) updateAdminScrubber(elapsed);
 }
@@ -420,11 +443,11 @@ function setupAdminScrubber() {
   panel.classList.remove("hidden");
 
   const range = $("as-range");
-  if (duration > 0) range.max = duration;
+  if (effectiveDuration > 0) range.max = effectiveDuration;
 
   document.querySelectorAll(".as-jump").forEach((btn) => {
     btn.addEventListener("click", () => {
-      adminSeek(Math.min(elapsedSeconds() + parseInt(btn.dataset.secs, 10), duration || 7200));
+      adminSeek(Math.min(elapsedSeconds() + parseInt(btn.dataset.secs, 10), effectiveDuration || 7200));
     });
   });
 
@@ -463,7 +486,7 @@ function updateAdminScrubber(elapsed) {
   if (!range || document.activeElement === range) return;
   const e = Math.max(0, elapsed);
   range.value = Math.floor(e);
-  $("as-time").textContent = fmtClock(e) + " / " + fmtClock(duration || 3600);
+  $("as-time").textContent = fmtClock(e) + " / " + fmtClock(effectiveDuration || 3600);
 }
 
 function subscribeToLiveComments() {
@@ -545,7 +568,7 @@ function updateViewers(elapsed) {
   } else if (mode === "ended") {
     count = Math.round(v.base * 0.4);
   } else {
-    const progress = duration ? Math.min(1, elapsed / duration) : 0.5;
+    const progress = effectiveDuration ? Math.min(1, elapsed / effectiveDuration) : 0.5;
     const eased = 1 - Math.pow(1 - progress, 2);
     const baseCount = v.base + (v.peak - v.base) * eased;
     const jitter = Math.sin(elapsed / 7) * v.jitter + Math.sin(elapsed / 2.3) * (v.jitter / 2);

@@ -11,6 +11,7 @@ const params = new URLSearchParams(location.search);
 const WID = params.get("id");
 let webinar = null;
 let profile = null;
+let videoCuts = []; // [{ from, to }] em segundos
 
 const $ = (id) => document.getElementById(id);
 
@@ -31,6 +32,11 @@ const $ = (id) => document.getElementById(id);
   );
   $("video-file").addEventListener("change", onVideoFile);
   $("video-url").addEventListener("change", onVideoUrlChange);
+  $("add-cut").addEventListener("click", addCut);
+  $("cuts-list").addEventListener("click", (e) => {
+    const btn = e.target.closest(".cut-remove");
+    if (btn) removeCut(+btn.dataset.idx);
+  });
   setupPackInserter();
   $("add-comment").addEventListener("click", () => addChild("comments"));
   $("add-cta").addEventListener("click", () => addChild("ctas"));
@@ -349,6 +355,10 @@ async function loadWebinar() {
   $("lf-eq2-placeholder").value = eq2.placeholder || "";
   $("lf-eq2-required").checked  = !!eq2.required;
   $("video-start-offset").value = s.video_start_offset ? fmtClock(s.video_start_offset) : "";
+  videoCuts = (Array.isArray(s.video_cuts) ? s.video_cuts : [])
+    .filter((c) => Number.isFinite(c?.from) && Number.isFinite(c?.to) && c.to > c.from)
+    .sort((a, b) => a.from - b.from);
+  renderCuts();
   if (data.video_url) {
     showVideoPreview(data.video_url);
     // Auto-detecta duração do YouTube se ainda não estiver salva
@@ -397,6 +407,7 @@ async function saveCore() {
     waiting_text: $("waiting-text").value.trim(),
     ended_text: $("ended-text").value.trim(),
     video_start_offset: parseClock($("video-start-offset").value) || 0,
+    video_cuts: videoCuts,
     lead_form: {
       enabled: $("lf-enabled").checked,
       title: $("lf-title").value.trim(),
@@ -473,6 +484,49 @@ function extractYouTubeId(url) {
     /(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/
   );
   return m ? m[1] : null;
+}
+
+// ---------- Cortes no vídeo ----------
+function renderCuts() {
+  const host = $("cuts-list");
+  if (!videoCuts.length) {
+    host.innerHTML = `<div class="empty">Nenhum corte cadastrado.</div>`;
+    return;
+  }
+  host.innerHTML = videoCuts.map((c, idx) => `
+    <div class="sub-item row spread wrap" style="align-items:center;">
+      <div>
+        <strong>${fmtClock(c.from)}</strong> até <strong>${fmtClock(c.to)}</strong>
+        <span class="muted" style="margin-left:.5rem;font-size:.82rem;">(pula ${fmtClock(c.to - c.from)})</span>
+      </div>
+      <button class="btn btn--sm btn--danger cut-remove" data-idx="${idx}">Remover</button>
+    </div>
+  `).join("");
+}
+
+function addCut() {
+  const from = parseClock($("cut-from").value);
+  const to = parseClock($("cut-to").value);
+  if (!$("cut-from").value.trim() || !$("cut-to").value.trim() || to <= from) {
+    toast("Informe um intervalo válido (o \"até\" precisa ser maior que o \"de\").", "error");
+    return;
+  }
+  const overlaps = videoCuts.some((c) => from < c.to && to > c.from);
+  if (overlaps) {
+    toast("Esse intervalo sobrepõe um corte já cadastrado.", "error");
+    return;
+  }
+  videoCuts.push({ from, to });
+  videoCuts.sort((a, b) => a.from - b.from);
+  $("cut-from").value = "";
+  $("cut-to").value = "";
+  renderCuts();
+  toast("Corte adicionado. Clique em Salvar para confirmar.", "success");
+}
+
+function removeCut(idx) {
+  videoCuts.splice(idx, 1);
+  renderCuts();
 }
 
 function showVideoPreview(url) {
